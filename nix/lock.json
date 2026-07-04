@@ -8,6 +8,18 @@
     "rev": "9e92285f211dad236540fd617d7e30e0b99bc0e1"
   },
   "packages": {
+    "bash": {
+      "attr": "bash",
+      "outputs": {
+        "debug": "/nix/store/l76krav3w28kmd2b00lb687i1ykswvp0-bash-interactive-5.3p9-debug",
+        "dev": "/nix/store/44fi33grmrbkp2h80a31mqj5lqd3qfwp-bash-interactive-5.3p9-dev",
+        "doc": "/nix/store/5j2akpmlk107gzdqkms35r3nwhkwnibh-bash-interactive-5.3p9-doc",
+        "info": "/nix/store/pspjmjsphdkjsi20gpxh2p1aq6p73n1c-bash-interactive-5.3p9-info",
+        "man": "/nix/store/b67fr4nba948zxxpmdsnzqr06l9fnnag-bash-interactive-5.3p9-man",
+        "out": "/nix/store/0641h8qfqaxnwrsw2nzrz6i1wbzyx92l-bash-interactive-5.3p9"
+      },
+      "storePath": "/nix/store/0641h8qfqaxnwrsw2nzrz6i1wbzyx92l-bash-interactive-5.3p9"
+    },
     "binutils": {
       "attr": "binutils",
       "outputs": {
@@ -16,6 +28,15 @@
         "out": "/nix/store/z4zcd87nx2hrsdayd0vl2mx5ncj3ikd8-binutils-wrapper-2.46"
       },
       "storePath": "/nix/store/z4zcd87nx2hrsdayd0vl2mx5ncj3ikd8-binutils-wrapper-2.46"
+    },
+    "coreutils": {
+      "attr": "coreutils",
+      "outputs": {
+        "debug": "/nix/store/wifadx5v4ps5nvf23cr22lswn3q70s6f-coreutils-9.11-debug",
+        "info": "/nix/store/zs5bzwnkhgzka1ccvzkhx0xzf1mlah2j-coreutils-9.11-info",
+        "out": "/nix/store/sr26flm2nkfa12dkrwj2630kqsfakky4-coreutils-9.11"
+      },
+      "storePath": "/nix/store/sr26flm2nkfa12dkrwj2630kqsfakky4-coreutils-9.11"
     },
     "gcc": {
       "attr": "gcc",
@@ -86,6 +107,22 @@
         "/nix/store/k7kxg101ikkm0cyf8jcqhg948vy542af-perl-5.42.0",
         "/nix/store/l0vl4dali2mvbpi30a8da1f71jl85myg-openssl-3.6.2",
         "/nix/store/zh1ijdhb6gng1509b1zrilb6xlzx60j6-bash-5.3p9"
+      ]
+    },
+    "/nix/store/0641h8qfqaxnwrsw2nzrz6i1wbzyx92l-bash-interactive-5.3p9": {
+      "nar": {
+        "cache": 0,
+        "compression": "zstd",
+        "fileHash": "sha256-D6trnOXRbvi+hRYGuiPIXArODw0SG2C/WDyJHl3fQco=",
+        "fileSize": 1638786,
+        "url": "nar/0cr6df6dl4y8sp6nmnmpfhhzbqrnawm504sszisfxh1yi05jhigb.nar.zst"
+      },
+      "narHash": "sha256-60UoC4g+wO50/FoTUCpXNuP1IXS32mrN1cgT2oxrJjM=",
+      "narSize": 7415800,
+      "references": [
+        "/nix/store/8kvxvr3pmsypxiypq4g8zy13glnfr7nx-glibc-2.42-67",
+        "/nix/store/im7mcigg1x2bq9rg7z3h3i26pjmss0c7-readline-8.3p3",
+        "/nix/store/mxq1r9w2w2y9lsqb5fkcyb5xbbki1n57-ncurses-6.6"
       ]
     },
     "/nix/store/08nfpyc4qhzdkc37nznvfpbybihyr063-attr-2.5.2": {
@@ -182,6 +219,20 @@
         "/nix/store/y4h9ak6f3z22hvq97jwh90lmc4agx28c-binutils-2.46-lib"
       ]
     },
+    "/nix/store/44fi33grmrbkp2h80a31mqj5lqd3qfwp-bash-interactive-5.3p9-dev": {
+      "nar": {
+        "cache": 0,
+        "compression": "zstd",
+        "fileHash": "sha256-64hzfQ5+K/c+Wj/WOaDJddsQ4lk6YL8a4XIWA6nLQ/I=",
+        "fileSize": 78562,
+        "url": "nar/1n7lq5r7c82fjlbmd95fzahcs4fhh7nn81ajaabdpd36rfb6856p.nar.zst"
+      },
+      "narHash": "sha256-1xRklstmtNuWUlIFZO2B0BHNoPqupFYXlU4gdnLB9Ng=",
+      "narSize": 334704,
+      "references": [
+        "/nix/store/0641h8qfqaxnwrsw2nzrz6i1wbzyx92l-bash-interactive-5.3p9"
+      ]
+    },
     "/nix/store/521dd0054ifhzmjfmpx9mz0hr7wh7sig-glibc-2.42-67-bin": {
       "nar": {
         "cache": 0,
@@ -207,6 +258,18 @@
       },
       "narHash": "sha256-GL0rUAmFeT4FD9InKUtzn9KNzodh1T/zPp07M8EUn3k=",
       "narSize": 181496,
+      "references": []
+    },
+    "/nix/store/5j2akpmlk107gzdqkms35r3nwhkwnibh-bash-interactive-5.3p9-doc": {
+      "nar": {
+        "cache": 0,
+        "compression": "zstd",
+        "fileHash": "sha256-ND4NiPEx8mFUsjO/zF6w5I2WJqL9ZWYo38zq1TN2ieU=",
+        "fileSize": 460575,
+        "url": "nar/0whd59p7ypbgb70s38dkp5vyc3pkj03ca09qv1xzidi6car06ycj.nar.zst"
+      },
+      "narHash": "sha256-knkDsmImtvh72DgBxQaQ8w7md7mzoaHBWW9df24qDXI=",
+      "narSize": 2222968,
       "references": []
     },
     "/nix/store/5r95b3z75rc980dws0wp5ylawgzfkj6l-gcc-15.2.0-man": {
@@ -315,6 +378,18 @@
       },
       "narHash": "sha256-u2gDQqzCTqFkyG5vv4lk/1NJNN5KX080ISYzHSVaviY=",
       "narSize": 197672,
+      "references": []
+    },
+    "/nix/store/b67fr4nba948zxxpmdsnzqr06l9fnnag-bash-interactive-5.3p9-man": {
+      "nar": {
+        "cache": 0,
+        "compression": "zstd",
+        "fileHash": "sha256-ZyANnFj2vkbZbiJagiTf5DQxW34+w6uvScgUxpJrmyk=",
+        "fileSize": 110033,
+        "url": "nar/12k6wahxw8wr8fxmy22fb9xwa2pnfa7brdpd76hqnjn9szszgi1w.nar.zst"
+      },
+      "narHash": "sha256-PMT39dfJSouhOe22vI5y9grFe1pOCF+7Q5kj3qHiZoo=",
+      "narSize": 110024,
       "references": []
     },
     "/nix/store/bbk5ss80g5rgnwgn9b8br4l29km8plh9-xz-5.8.3": {
@@ -591,6 +666,18 @@
         "/nix/store/sr26flm2nkfa12dkrwj2630kqsfakky4-coreutils-9.11"
       ]
     },
+    "/nix/store/kwm524zjlnnq4yfhhmb5r14f2wxf8a2j-bash-5.3.tar.gz": {
+      "nar": {
+        "cache": 0,
+        "compression": "zstd",
+        "fileHash": "sha256-jR708zOY7m0Ml0RvWg1TvzCFng7Tl7d1nfr/FfmfVMM=",
+        "fileSize": 11356235,
+        "url": "nar/0anss240i3h4pp67napys7v8c4caqhzi5jmzzikjp222d17xbici.nar.zst"
+      },
+      "narHash": "sha256-kcXVT2hCiCtn/L/KEj/EihGG9tH+KnvMvQSOCIjQ2io=",
+      "narSize": 11355968,
+      "references": []
+    },
     "/nix/store/l0vl4dali2mvbpi30a8da1f71jl85myg-openssl-3.6.2": {
       "nar": {
         "cache": 0,
@@ -603,6 +690,22 @@
       "narSize": 9303968,
       "references": [
         "/nix/store/8kvxvr3pmsypxiypq4g8zy13glnfr7nx-glibc-2.42-67"
+      ]
+    },
+    "/nix/store/l76krav3w28kmd2b00lb687i1ykswvp0-bash-interactive-5.3p9-debug": {
+      "nar": {
+        "cache": 0,
+        "compression": "xz",
+        "fileHash": "sha256-Pgh6iKe3E6VwfpS2jyTeauAoS/nKpUSFuX8h/ie542k=",
+        "fileSize": 1665260,
+        "url": "nar/0sg3p4kzw8bzp62l99faz55jiq3avqj8zdllgrqaa4xply47l21y.nar.xz"
+      },
+      "narHash": "sha256-ZLt/4Gkg4dd6XHFzCoN80XGHwnsdktQl7eryLTyLNO8=",
+      "narSize": 3585496,
+      "references": [
+        "/nix/store/0641h8qfqaxnwrsw2nzrz6i1wbzyx92l-bash-interactive-5.3p9",
+        "/nix/store/kwm524zjlnnq4yfhhmb5r14f2wxf8a2j-bash-5.3.tar.gz",
+        "/nix/store/zh1ijdhb6gng1509b1zrilb6xlzx60j6-bash-5.3p9"
       ]
     },
     "/nix/store/l9k0anq0z7zz81zcwy035jfwap9ga6rl-python3-3.13.13": {
@@ -729,6 +832,18 @@
         "/nix/store/8kvxvr3pmsypxiypq4g8zy13glnfr7nx-glibc-2.42-67"
       ]
     },
+    "/nix/store/p59cz49l5faa67c72wxdql3jfj9gy2fn-coreutils-9.11.tar.xz": {
+      "nar": {
+        "cache": 0,
+        "compression": "zstd",
+        "fileHash": "sha256-axLFdmYEH0R494VY2gFoVs5REOq4shFIOwSMgCmrmHI=",
+        "fileSize": 6562695,
+        "url": "nar/1f7pfrz7svkpah5csrwvcfc14smbqk6hwqsqj0z81qawgh1jx8a0.nar.zst"
+      },
+      "narHash": "sha256-QKEuA3xc4YA+kFhjDs3Eq2oSmGObZ80KVHdufX5297g=",
+      "narSize": 6562536,
+      "references": []
+    },
     "/nix/store/pcar1vqvmn2y42lplzca392yx605kk31-gcc-wrapper-15.2.0-info": {
       "nar": {
         "cache": 0,
@@ -742,6 +857,30 @@
       "references": [
         "/nix/store/2hbjnbfhaq4gq6p55xi9qvj6lx7x4g04-gcc-15.2.0-info"
       ]
+    },
+    "/nix/store/pspjmjsphdkjsi20gpxh2p1aq6p73n1c-bash-interactive-5.3p9-info": {
+      "nar": {
+        "cache": 0,
+        "compression": "zstd",
+        "fileHash": "sha256-qyVYfA2msYS1Ilhpssn05BZZR/pPxtxHVzBw3t0IF9A=",
+        "fileSize": 170423,
+        "url": "nar/167b9gh9s6p9hdbfbnx4zgg7jckmyr7lgdgbmya6kvyqkk5p2hlx.nar.zst"
+      },
+      "narHash": "sha256-nUJxy5zY72mUr+u1R0/2dTJ53vuk2+VWg+kaneBL65g=",
+      "narSize": 640520,
+      "references": []
+    },
+    "/nix/store/pzpmwj3agpmlkjfq0g62r2zxa7qysdya-bash-static-5.3": {
+      "nar": {
+        "cache": 0,
+        "compression": "zstd",
+        "fileHash": "sha256-6o/3LdGdZ4I0+/G+d38wStcNb/HF6qyraf68GenBHBo=",
+        "fileSize": 2467700,
+        "url": "nar/177bla731rjw3cqcwf93wfmfk520qq14lzj5wdcz40sdnrmqd63b.nar.zst"
+      },
+      "narHash": "sha256-a5iGa7ZNA/JZ40V+SgLGQJTpquMjOc4wG1zmMI6i65w=",
+      "narSize": 10111128,
+      "references": []
     },
     "/nix/store/q5wv2ldpcv5w8yb2wmsngsygvlxb73fk-glibc-2.42-67-dev": {
       "nar": {
@@ -837,6 +976,22 @@
       "references": [
         "/nix/store/8kvxvr3pmsypxiypq4g8zy13glnfr7nx-glibc-2.42-67",
         "/nix/store/x2zjc47pkhcwxr4iyv5xj3hdqfzfnyd9-pcre2-10.46"
+      ]
+    },
+    "/nix/store/wifadx5v4ps5nvf23cr22lswn3q70s6f-coreutils-9.11-debug": {
+      "nar": {
+        "cache": 0,
+        "compression": "xz",
+        "fileHash": "sha256-uTBqNQBzFME9/1ZEdmAZtAd9hOoCKCKzwJcVZFl9dnw=",
+        "fileSize": 2575892,
+        "url": "nar/0z3ngmcn85cpq2rj4a02xa27s1xl35h7ci2nzwyw253k00snlc5r.nar.xz"
+      },
+      "narHash": "sha256-AIKQcWvnRm5RXUzhyrIU8tKw00eVXhj8jhIPkUH1kTs=",
+      "narSize": 5824968,
+      "references": [
+        "/nix/store/p59cz49l5faa67c72wxdql3jfj9gy2fn-coreutils-9.11.tar.xz",
+        "/nix/store/pzpmwj3agpmlkjfq0g62r2zxa7qysdya-bash-static-5.3",
+        "/nix/store/sr26flm2nkfa12dkrwj2630kqsfakky4-coreutils-9.11"
       ]
     },
     "/nix/store/wzigz21rnv9nj8g7r8ai8ldm84zqnhda-mpfr-4.2.2": {
@@ -1039,6 +1194,18 @@
       "references": [
         "/nix/store/ipz4lbivx3q7gr79130d6g5ix35vibnw-libunistring-1.4.2"
       ]
+    },
+    "/nix/store/zs5bzwnkhgzka1ccvzkhx0xzf1mlah2j-coreutils-9.11-info": {
+      "nar": {
+        "cache": 0,
+        "compression": "xz",
+        "fileHash": "sha256-RnbqJxfELnWKtshrlu4wfkgmB5vCXm3VdGbwrqYkPXE=",
+        "fileSize": 206988,
+        "url": "nar/0w9x4jkaxw36fkanspn2kc3jcj3y63p9csy8ns57abn42wkylxj6.nar.xz"
+      },
+      "narHash": "sha256-hWgrsyGe/eX6VBcsBBKnRkCqHPgTyEiQZtM6b8mjo3k=",
+      "narSize": 1059840,
+      "references": []
     }
   },
   "system": "x86_64-linux",

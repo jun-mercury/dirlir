@@ -7,7 +7,9 @@ PYTHON3 = "/nix/store/fk8c5cqd0npblqv1mcd8swhkcbng84qr-python3-3.14.4/bin/python
 SHIM_STORE_PATH = "/nix/store/ljg8wn27311mlkalfgyiksk4n855qh3c-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0"
 
 PACKAGES = {
+    "bash": "/nix/store/0641h8qfqaxnwrsw2nzrz6i1wbzyx92l-bash-interactive-5.3p9",
     "binutils": "/nix/store/z4zcd87nx2hrsdayd0vl2mx5ncj3ikd8-binutils-wrapper-2.46",
+    "coreutils": "/nix/store/sr26flm2nkfa12dkrwj2630kqsfakky4-coreutils-9.11",
     "gcc": "/nix/store/xcnqqnhw9hb4j5rjgds2yjryi8qki5f3-gcc-wrapper-15.2.0",
     "hello": "/nix/store/nm7p8wxflggcwxfzayhysq4z6a1wg373-hello-2.12.3",
     "nix-store-shim": "/nix/store/ljg8wn27311mlkalfgyiksk4n855qh3c-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0",

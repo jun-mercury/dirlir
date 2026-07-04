@@ -8,3 +8,14 @@ dir_layer(
     ],
     visibility = ["PUBLIC"],
 )
+
+# Demo/test layer: coreutils+bash so there are in-layer binaries to prove
+# store masking with (on NixOS every host binary needs /nix/store, so host
+# tools cannot be used inside the shim's namespace).
+dir_layer(
+    name = "demo",
+    features = [
+        feature.nix_packages(packages = ["bash", "coreutils", "hello"]),
+    ],
+    visibility = ["PUBLIC"],
+)

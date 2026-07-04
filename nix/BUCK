@@ -1,5 +1,16 @@
+load("//dirlir:import.bzl", "nix_store_import")
+load(":lock.bzl", "SHIM_STORE_PATH")
+
 export_file(
     name = "lock.json",
     src = "lock.json",
+    visibility = ["PUBLIC"],
+)
+
+# The static userns shim as a tracked artifact (imported from the committed
+# nix/cache file cache via the NAR pipeline, so no host store needed).
+nix_store_import(
+    name = "shim",
+    store_path = SHIM_STORE_PATH,
     visibility = ["PUBLIC"],
 )

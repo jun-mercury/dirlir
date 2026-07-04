@@ -1,0 +1,19 @@
+load("//dirlir:import.bzl", "nix_tool")
+
+nix_tool(
+    name = "hello",
+    layer = "root//layers:demo",
+    path = "bin/hello",
+)
+
+nix_tool(
+    name = "ls",
+    layer = "root//layers:demo",
+    path = "bin/ls",
+)
+
+nix_tool(
+    name = "sh",
+    layer = "root//layers:demo",
+    path = "bin/sh",
+)
