@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
 """Generate nix/lock.json and nix/lock.bzl from the flake-pinned nixpkgs.
 
-This is the dirlir analog of antlir2's RPM snapshot + versionlock: run it
-once (and re-run to bump packages), commit the outputs. Buck2 build actions
-never evaluate nix -- they fetch NARs from binary caches using the hashes
-recorded here.
+The dirlir analog of antlir2's RPM snapshot + versionlock: run occasionally
+(tools/resolve.sh carries the canonical attr list), commit the outputs.
+Buck2 actions never evaluate nix — per-path NARs are fetched natively by
+buck2 (download_file, sha256 == NarHash) from the locked URLs.
 
-Resolution is evaluation-only for nixpkgs attrs: output store paths come
-from `nix eval` against this repo's flake.lock, and the closure is walked
-through .narinfo files on cache.nixos.org. That walk doubles as the
-guarantee that every path is fetchable at materialize time (a missing
-narinfo fails resolution, not some later build).
-
-Flake-local packages (passed as `.#name`, e.g. `.#nix-store-shim`) are not
-on the public cache: they are built locally and pushed into the committed
-repo-local file cache at nix/cache/.
+v2 (PLAN-v2 M4):
+- cache = https://nixos.snix.store (serves UNCOMPRESSED NARs, so the NAR
+  file's sha256 IS the NarHash; URL comes from the narinfo, castore-form)
+- every narinfo's ed25519 signature is verified against TRUSTED_KEYS before
+  anything is locked; unsigned or badly-signed paths abort the resolve
+- schema per path: narHash, narSize, references, url (no FileHash — snix
+  has none; no compression — always identity)
 
 usage: python3 nix/resolve.py [--check] ATTR...
        (from the repo root, with `nix` on PATH; e.g. via `nix develop`)
@@ -30,9 +28,18 @@ import sys
 import urllib.error
 import urllib.request
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import ed25519  # noqa: E402
+
 SYSTEM = "x86_64-linux"
-CACHES = ["https://cache.nixos.org", "nix/cache"]  # nix/cache is repo-relative
+CACHES = ["https://nixos.snix.store"]
 STORE = "/nix/store"
+
+# Signatures accepted for locked paths. snix mirrors cache.nixos.org
+# narinfos, so its entries carry the upstream signature.
+TRUSTED_KEYS = {
+    "cache.nixos.org-1": "6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=",
+}
 
 NIX32_ALPHABET = "0123456789abcdfghijklmnpqrsvwxyz"
 
@@ -80,7 +87,7 @@ def nix(*args: str) -> str:
 
 
 def eval_nixpkgs_attrs(attrs: list) -> dict:
-    """One nix eval for all nixpkgs attrs -> {attr: {default, outputs}}."""
+    """One nix eval for all attrs -> {attr: {default, outputs}}."""
     if not attrs:
         return {}
     names = " ".join(f'"{a}"' for a in attrs)
@@ -94,49 +101,59 @@ def eval_nixpkgs_attrs(attrs: list) -> dict:
     return json.loads(out)
 
 
-def eval_flake_package(name: str) -> dict:
-    apply = (
-        "p: { default = p.outPath; outputs = builtins.listToAttrs "
-        "(map (o: { name = o; value = p.${o}.outPath; }) p.outputs); }"
-    )
-    out = nix("eval", "--json", f".#{name}", "--apply", apply)
-    return json.loads(out)
-
-
 def parse_narinfo(text: str) -> dict:
     fields = {}
+    sigs = []
     for line in text.splitlines():
         key, _, value = line.partition(":")
-        fields[key.strip()] = value.strip()
+        if key.strip() == "Sig":
+            sigs.append(value.strip())
+        else:
+            fields[key.strip()] = value.strip()
+    fields["Sigs"] = sigs
     return fields
 
 
-def fetch_narinfo(root: str, store_path: str):
-    """Try each cache in order; return (cache_index, narinfo_fields) or None."""
+def verify_narinfo(store_path: str, info: dict) -> None:
+    """Abort unless a trusted key validly signs this narinfo's fingerprint."""
+    refs = [f"{STORE}/{r}" for r in info.get("References", "").split()]
+    fingerprint = "1;{};{};{};{}".format(
+        store_path, info["NarHash"], info["NarSize"], ",".join(refs))
+    for sig in info["Sigs"]:
+        key_name, _, sig_b64 = sig.partition(":")
+        pub_b64 = TRUSTED_KEYS.get(key_name)
+        if pub_b64 is None:
+            continue
+        if ed25519.verify(base64.b64decode(sig_b64), fingerprint.encode(),
+                          base64.b64decode(pub_b64)):
+            return
+        raise SystemExit(
+            f"error: INVALID signature by {key_name} on {store_path} — "
+            f"refusing to lock")
+    raise SystemExit(
+        f"error: no signature from a trusted key on {store_path} "
+        f"(sigs: {[s.split(':')[0] for s in info['Sigs']] or 'none'})")
+
+
+def fetch_narinfo(store_path: str):
     hashpart = os.path.basename(store_path)[:32]
     for idx, cache in enumerate(CACHES):
-        if cache.startswith("http"):
-            url = f"{cache}/{hashpart}.narinfo"
-            req = urllib.request.Request(url, headers={"User-Agent": "dirlir-resolve"})
-            for _ in range(3):
-                try:
-                    with urllib.request.urlopen(req, timeout=30) as f:
-                        return idx, parse_narinfo(f.read().decode())
-                except urllib.error.HTTPError as e:
-                    if e.code == 404:
-                        break
-                except urllib.error.URLError:
-                    continue
-        else:
-            path = os.path.join(root, cache, f"{hashpart}.narinfo")
-            if os.path.exists(path):
-                with open(path) as f:
-                    return idx, parse_narinfo(f.read())
+        url = f"{cache}/{hashpart}.narinfo"
+        req = urllib.request.Request(url, headers={"User-Agent": "dirlir-resolve"})
+        for _ in range(3):
+            try:
+                with urllib.request.urlopen(req, timeout=30) as f:
+                    return idx, parse_narinfo(f.read().decode())
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    break
+            except urllib.error.URLError:
+                continue
     return None
 
 
-def walk_closure(root: str, roots: list) -> dict:
-    """BFS the closure of `roots` via narinfo References -> paths table."""
+def walk_closure(roots: list) -> dict:
+    """BFS the closure via narinfo References; verify every signature."""
     paths = {}
     pending = set(roots)
     with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
@@ -144,14 +161,13 @@ def walk_closure(root: str, roots: list) -> dict:
             batch = sorted(pending)
             pending.clear()
             for store_path, result in zip(
-                batch, pool.map(lambda p: fetch_narinfo(root, p), batch)
+                batch, pool.map(fetch_narinfo, batch)
             ):
                 if result is None:
                     raise SystemExit(
-                        f"error: {store_path} has no narinfo in any of "
-                        f"{CACHES}; is it built by hydra for this nixpkgs pin?"
-                    )
+                        f"error: {store_path} has no narinfo in {CACHES}")
                 idx, info = result
+                verify_narinfo(store_path, info)
                 refs = sorted(
                     f"{STORE}/{r}"
                     for r in info.get("References", "").split()
@@ -161,39 +177,25 @@ def walk_closure(root: str, roots: list) -> dict:
                     "narHash": to_sri(info["NarHash"]),
                     "narSize": int(info["NarSize"]),
                     "references": refs,
-                    "nar": {
-                        "cache": idx,
-                        "url": info["URL"],
-                        "compression": info.get("Compression", "none"),
-                        "fileHash": to_sri(info.get("FileHash", info["NarHash"])),
-                        "fileSize": int(info.get("FileSize", info["NarSize"])),
-                    },
+                    "nar": {"cache": idx, "url": info["URL"]},
                 }
                 pending.update(r for r in refs if r not in paths and r not in batch)
     return paths
 
 
-def push_to_file_cache(root: str, store_path: str) -> None:
-    cache_dir = os.path.join(root, "nix/cache")
-    os.makedirs(cache_dir, exist_ok=True)
-    nix("copy", "--to", f"file://{cache_dir}?compression=xz", store_path)
-
-
-def emit_lock_bzl(packages: dict) -> str:
+def emit_lock_bzl(packages: dict, paths: dict) -> str:
     lines = [
         "# @generated by nix/resolve.py -- do not edit",
         "# Load-time mirror of nix/lock.json (Starlark cannot read JSON at",
-        "# load/analysis time; rules need these store-path strings).",
+        "# load/analysis time). PATHS urls are absolute; sha256 is the",
+        "# NarHash as hex (snix serves uncompressed NARs, so buck2's native",
+        "# download_file verifies the NarHash itself).",
         "",
+        # The pinned local-action interpreter; deleted in M6 with dir_layer v2.
     ]
-    # The local-action interpreter: python 3.14+ (stdlib zstd for NARs).
     py = packages.get("python314")
     if py:
         lines.append(f'PYTHON3 = "{py["storePath"]}/bin/python3"')
-        lines.append("")
-    shim = packages.get("nix-store-shim")
-    if shim:
-        lines.append(f'SHIM_STORE_PATH = "{shim["storePath"]}"')
         lines.append("")
     lines.append("PACKAGES = {")
     for name in sorted(packages):
@@ -207,63 +209,64 @@ def emit_lock_bzl(packages: dict) -> str:
         lines.append("    },")
     lines.append("}")
     lines.append("")
+    lines.append("PATHS = {")
+    for path in sorted(paths):
+        p = paths[path]
+        sha_hex = base64.b64decode(p["narHash"].split("-", 1)[1]).hex()
+        url = CACHES[p["nar"]["cache"]] + "/" + p["nar"]["url"]
+        lines.append(f'    "{path}": {{')
+        lines.append(f'        "nar_size": {p["narSize"]},')
+        lines.append('        "references": [')
+        for r in p["references"]:
+            lines.append(f'            "{r}",')
+        lines.append("        ],")
+        lines.append(f'        "sha256": "{sha_hex}",')
+        lines.append(f'        "url": "{url}",')
+        lines.append("    },")
+    lines.append("}")
+    lines.append("")
     return "\n".join(lines)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("attrs", nargs="+",
-                    help="nixpkgs attrs (gcc) or flake-local packages (.#name)")
+    ap.add_argument("attrs", nargs="+", help="nixpkgs attrs (gcc, openssl, ...)")
     ap.add_argument("--check", action="store_true",
                     help="verify committed lock files are up to date")
     args = ap.parse_args()
 
-    root = repo_root()
-    os.chdir(root)
+    os.chdir(repo_root())
 
     with open("flake.lock") as f:
         flake_lock = json.load(f)
     nixpkgs_node = flake_lock["nodes"]["nixpkgs"]["locked"]
 
-    nixpkgs_attrs = [a for a in args.attrs if not a.startswith(".#")]
-    local_attrs = [a[2:] for a in args.attrs if a.startswith(".#")]
-    for attr in nixpkgs_attrs:
-        if "." in attr:
+    for attr in args.attrs:
+        if "." in attr or attr.startswith("#"):
             raise SystemExit(
-                f"error: pass package attrs, not outputs ({attr}); features "
-                f"select outputs as e.g. '{attr.split('.')[0]}.dev'")
+                f"error: pass plain nixpkgs package attrs, not '{attr}' "
+                f"(features select outputs as e.g. 'openssl.dev')")
 
-    print(f"evaluating {len(nixpkgs_attrs)} nixpkgs attrs...", file=sys.stderr)
-    evaluated = eval_nixpkgs_attrs(nixpkgs_attrs)
-
-    packages = {}
-    for attr, info in evaluated.items():
-        packages[attr] = {
+    print(f"evaluating {len(args.attrs)} nixpkgs attrs...", file=sys.stderr)
+    evaluated = eval_nixpkgs_attrs(args.attrs)
+    packages = {
+        attr: {
             "attr": attr,
             "storePath": info["default"],
             "outputs": info["outputs"],
         }
-
-    for name in local_attrs:
-        print(f"building flake package .#{name}...", file=sys.stderr)
-        nix("build", "--no-link", f".#{name}")
-        info = eval_flake_package(name)
-        packages[name] = {
-            "attr": f".#{name}",
-            "storePath": info["default"],
-            "outputs": info["outputs"],
-        }
-        print(f"pushing .#{name} to nix/cache...", file=sys.stderr)
-        for out_path in info["outputs"].values():
-            push_to_file_cache(root, out_path)
+        for attr, info in evaluated.items()
+    }
 
     roots = sorted({p for pkg in packages.values() for p in pkg["outputs"].values()})
-    print(f"walking closure of {len(roots)} roots via narinfo...", file=sys.stderr)
-    paths = walk_closure(root, roots)
-    print(f"closure: {len(paths)} store paths", file=sys.stderr)
+    print(f"walking closure of {len(roots)} roots via signed narinfo...",
+          file=sys.stderr)
+    paths = walk_closure(roots)
+    print(f"closure: {len(paths)} store paths, all signatures verified",
+          file=sys.stderr)
 
     lock = {
-        "version": 1,
+        "version": 2,
         "system": SYSTEM,
         "nixpkgs": {
             "rev": nixpkgs_node["rev"],
@@ -274,7 +277,7 @@ def main() -> int:
         "paths": paths,
     }
     lock_json = json.dumps(lock, indent=2, sort_keys=True) + "\n"
-    lock_bzl = emit_lock_bzl(packages)
+    lock_bzl = emit_lock_bzl(packages, paths)
 
     if args.check:
         ok = True

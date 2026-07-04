@@ -100,7 +100,8 @@ def fetch_compressed_nar(lock, store_path, refetch=False):
 
 def unpack_nar(lock, store_path, compressed, dest):
     info = lock["paths"][store_path]
-    compression = info["nar"]["compression"]
+    # lock v2 (snix) serves uncompressed NARs and has no compression field.
+    compression = info["nar"].get("compression", "none")
     if compression == "xz":
         stream = lzma.open(compressed, "rb")
     elif compression == "zstd":
