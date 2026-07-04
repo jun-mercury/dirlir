@@ -16,6 +16,10 @@ import tempfile
 
 IGNORE = (
     "/etc/ld.so.cache",  # succeeds on host, benign ENOENT under enforce
+    # glibc probes the host locale archive on non-nix hosts (Ubuntu CI);
+    # under enforce it ENOENTs and locale falls back to C — output is
+    # unaffected (the determinism goldens pin this cross-machine).
+    "/usr/lib/locale/locale-archive",
 )
 
 
