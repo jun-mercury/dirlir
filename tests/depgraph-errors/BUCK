@@ -1,0 +1,28 @@
+# Layers that MUST fail to build, at the plan (depgraph) stage. They live
+# in the tests// cell so `buck2 build root//...` stays green; see
+# tests/depgraph-errors.sh for the expected error messages.
+
+load("@root//dirlir:defs.bzl", "dir_layer")
+load("@root//dirlir:features.bzl", "feature")
+
+dir_layer(
+    name = "conflict",
+    features = [
+        feature.install(src = "data.txt", dst = "/data.txt"),
+        feature.install(src = "data2.txt", dst = "/data.txt"),
+    ],
+)
+
+dir_layer(
+    name = "dangling-symlink",
+    features = [
+        feature.symlink(link = "/link", target = "/no/such/file"),
+    ],
+)
+
+dir_layer(
+    name = "missing-dir",
+    features = [
+        feature.install(src = "data.txt", dst = "/not/created/data.txt"),
+    ],
+)

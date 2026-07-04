@@ -48,6 +48,30 @@ dir_layer(
     visibility = ["PUBLIC"],
 )
 
+# parent_layer chaining demo: :app inherits :base, replaces a file (remove
+# tombstone + install), and adds dirs. Exercises every feature kind.
+dir_layer(
+    name = "base",
+    features = [
+        feature.ensure_dirs_exist(path = "/etc/app"),
+        feature.install(src = "app.conf", dst = "/etc/app/app.conf"),
+        feature.symlink(link = "/etc/app/conf", target = "/etc/app/app.conf"),
+        feature.nix_packages(packages = ["hello"]),
+    ],
+    visibility = ["PUBLIC"],
+)
+
+dir_layer(
+    name = "app",
+    parent_layer = ":base",
+    features = [
+        feature.remove(path = "/etc/app/app.conf"),
+        feature.install(src = "app2.conf", dst = "/etc/app/app.conf"),
+        feature.ensure_dirs_exist(path = "/var/log/app"),
+    ],
+    visibility = ["PUBLIC"],
+)
+
 # Demo/test layer: coreutils+bash so there are in-layer binaries to prove
 # store masking with (on NixOS every host binary needs /nix/store, so host
 # tools cannot be used inside the shim's namespace).
