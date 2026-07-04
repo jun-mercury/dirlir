@@ -1,5 +1,4 @@
-load("//dirlir:import.bzl", "nix_store_import")
-load(":lock.bzl", "SHIM_STORE_PATH")
+load("@root//dirlir:bootstrap.bzl", "nix_flake_tool")
 
 export_file(
     name = "lock.json",
@@ -7,10 +6,17 @@ export_file(
     visibility = ["PUBLIC"],
 )
 
-# The static userns shim as a tracked artifact (imported from the committed
-# nix/cache file cache via the NAR pipeline, so no host store needed).
-nix_store_import(
-    name = "shim",
-    store_path = SHIM_STORE_PATH,
+# The static dirlir tools (dirlir-shim, nar-unpack), built from this repo's
+# flake by the bootstrap action -- the only local_only action class in v2.
+nix_flake_tool(
+    name = "dirlir-tools",
+    package = "dirlir-tools",
+    srcs = [
+        "root//:flake.nix",
+        "root//:flake.lock",
+        "shim/default.nix",
+        "shim/dirlir-shim.c",
+        "shim/nar-unpack.c",
+    ],
     visibility = ["PUBLIC"],
 )

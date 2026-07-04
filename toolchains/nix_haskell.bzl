@@ -4,14 +4,13 @@
 
 load("@prelude//haskell:toolchain.bzl", "HaskellPlatformInfo", "HaskellToolchainInfo")
 load("@root//dirlir:providers.bzl", "NixLayerInfo")
+load("@root//dirlir:shim.bzl", "shim_run")
 
 def _tool(shim, layer_dir, rel):
-    return RunInfo(args = cmd_args(
-        cmd_args(shim, format = "{}/bin/nix-store-shim"),
-        "--store",
-        cmd_args(layer_dir, format = "{}/nix/store"),
-        "--",
-        cmd_args(layer_dir, format = "{{}}/{}".format(rel)),
+    return RunInfo(args = shim_run(
+        shim,
+        [cmd_args(layer_dir, format = "{}/nix/store")],
+        [cmd_args(layer_dir, format = "{{}}/{}".format(rel))],
     ))
 
 def _nix_haskell_toolchain_impl(ctx):
@@ -39,7 +38,7 @@ nix_haskell_toolchain = rule(
         "compiler_major_version": attrs.string(default = "9"),
         "layer": attrs.exec_dep(providers = [NixLayerInfo]),
         "linker_flags": attrs.list(attrs.arg(), default = []),
-        "_shim": attrs.default_only(attrs.exec_dep(default = "root//nix:shim")),
+        "_shim": attrs.default_only(attrs.exec_dep(default = "root//nix:dirlir-tools")),
     },
     is_toolchain_rule = True,
 )

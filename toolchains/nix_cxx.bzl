@@ -28,14 +28,13 @@ load("@prelude//cxx:headers.bzl", "HeaderMode")
 load("@prelude//linking:link_info.bzl", "LinkStyle")
 load("@prelude//linking:lto.bzl", "LtoMode")
 load("@root//dirlir:providers.bzl", "NixLayerInfo")
+load("@root//dirlir:shim.bzl", "shim_run")
 
 def _tool(shim, layer_dir, rel):
-    return RunInfo(args = cmd_args(
-        cmd_args(shim, format = "{}/bin/nix-store-shim"),
-        "--store",
-        cmd_args(layer_dir, format = "{}/nix/store"),
-        "--",
-        cmd_args(layer_dir, format = "{{}}/{}".format(rel)),
+    return RunInfo(args = shim_run(
+        shim,
+        [cmd_args(layer_dir, format = "{}/nix/store")],
+        [cmd_args(layer_dir, format = "{{}}/{}".format(rel))],
     ))
 
 def _nix_cxx_toolchain_impl(ctx):
@@ -131,7 +130,7 @@ nix_cxx_toolchain = rule(
             providers = [CxxInternalTools],
             default = "prelude//cxx/tools:internal_tools",
         )),
-        "_shim": attrs.default_only(attrs.exec_dep(default = "root//nix:shim")),
+        "_shim": attrs.default_only(attrs.exec_dep(default = "root//nix:dirlir-tools")),
     },
     is_toolchain_rule = True,
 )

@@ -262,16 +262,18 @@ static void enclose(const char *cwd, uid_t uid, gid_t gid) {
     // provisioned store
     mkpath(base, "/nix/store");
     provision_store(base);
+    // fresh /tmp FIRST: the exec root may itself live under /tmp (RE
+    // workers commonly do), and its bind must land inside the fresh tmpfs
+    // rather than be shadowed by it
+    mkpath(base, "/tmp");
+    snprintf(p, sizeof p, "%s/tmp", base);
+    if (mount("tmpfs", p, "tmpfs", 0, "mode=1777") < 0)
+        die(p);
     // exec root (cwd) at its own absolute path: buck2 actions address all
     // inputs/outputs relative to it
     mkpath(base, cwd);
     snprintf(p, sizeof p, "%s%s", base, cwd);
     bind(cwd, p);
-    // fresh /tmp
-    mkpath(base, "/tmp");
-    snprintf(p, sizeof p, "%s/tmp", base);
-    if (mount("tmpfs", p, "tmpfs", 0, "mode=1777") < 0)
-        die(p);
     enclose_dev(base);
     enclose_etc(base, uid, gid);
     // Fresh /proc for the new PID namespace. Must be mounted BEFORE the
@@ -368,8 +370,14 @@ static void usage(void) {
 }
 
 int main(int argc, char **argv) {
+    // @argfile expansion applies only to the shim's OWN arguments (before
+    // `--`); anything after belongs to the command verbatim (e.g. gcc's
+    // @argsfiles use different quoting rules and must pass through).
+    int seen_ddash = 0;
     for (int i = 1; i < argc; i++) {
-        if (argv[i][0] == '@')
+        if (!seen_ddash && strcmp(argv[i], "--") == 0)
+            seen_ddash = 1;
+        if (!seen_ddash && argv[i][0] == '@')
             expand_argfile(argv[i] + 1);
         else
             push_arg(argv[i]);

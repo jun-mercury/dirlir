@@ -20,6 +20,13 @@ TARGETS=(root//examples/hello_c:main root//examples/tls_demo:main root//examples
 echo "=== warming NAR download cache"
 buck2 build "${TARGETS[@]}" >/dev/null
 
+# Pre-warm ONLY the bootstrap tools in the hermetic isolation dir: their
+# action runs `nix build` (flake eval needs the whole host store) and is the
+# one sanctioned local-only step. Everything else in that isolation dir
+# stays cold and must rebuild inside the mask.
+echo "=== pre-warming bootstrap tools in the hermetic isolation dir"
+buck2 --isolation-dir hermetic build root//nix:dirlir-tools >/dev/null 2>&1
+
 BUCK2_BIN=$(realpath "$(command -v buck2)")
 PYTHON3_BIN=$(sed -n 's/^PYTHON3 = "\(.*\)"$/\1/p' nix/lock.bzl)
 CP_BIN=$(realpath "$(command -v cp)")

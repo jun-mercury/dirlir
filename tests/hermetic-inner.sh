@@ -44,7 +44,7 @@ if ! buck2 build root//examples/hello_c:main root//examples/tls_demo:main root//
 fi
 
 out_of() { buck2 build "$1" --show-full-output 2>/dev/null | awk '{print $2}'; }
-SHIM=$(out_of root//nix:shim)/bin/nix-store-shim
+SHIM=$(out_of root//nix:dirlir-tools)/bin/dirlir-shim
 CXXLAYER=$(out_of root//layers:cxx-toolchain)
 OPENSSL=$(out_of root//layers:openssl)
 GHCLAYER=$(out_of root//layers:ghc)

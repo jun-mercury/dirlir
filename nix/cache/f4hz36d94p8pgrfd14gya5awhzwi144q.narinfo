@@ -1,9 +1,0 @@
-StorePath: /nix/store/f4hz36d94p8pgrfd14gya5awhzwi144q-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0
-URL: nar/1amnh7n6f0p4dw1kb3ih8mc62sxr8vvs0iqsbija9hb16qjm7yab.nar.xz
-Compression: xz
-FileHash: sha256:1amnh7n6f0p4dw1kb3ih8mc62sxr8vvs0iqsbija9hb16qjm7yab
-FileSize: 24048
-NarHash: sha256:1hqvdsmd8hgv6csya69xka3a9d4djacmwmhwms7kb6qlglm22cwm
-NarSize: 54368
-References: 
-Deriver: vx8mk2517f38m2jbyqk94q48097p4wr3-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0.drv

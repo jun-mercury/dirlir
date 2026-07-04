@@ -32,7 +32,7 @@ fi
 # Resolve host-side artifact paths with the DEFAULT daemon before writing
 # .buckconfig.local: the RE settings change materializer state, which a
 # running daemon refuses to pick up.
-SHIM_HOST=$(buck2 build root//nix:shim --show-full-output 2>/dev/null | awk '{print $2}')/bin/nix-store-shim
+SHIM_HOST=$(buck2 build root//nix:dirlir-tools --show-full-output 2>/dev/null | awk '{print $2}')/bin/dirlir-shim
 # The RE client is constructed from the daemon's startup buckconfig;
 # --config-file cannot reach it, so drop the settings in .buckconfig.local
 # for the duration of the demo.
@@ -99,7 +99,7 @@ LOCAL_MAT=$(buck2re log what-ran 2>/dev/null | awk -F'\t' '$3 == "local"' | grep
 echo "=== remote actions: $RE_COUNT, local dirlir actions: $LOCAL_MAT"
 
 out_of() { buck2re build --config-file tests/re-demo/re.bcfg "$1" --show-full-output 2>/dev/null | awk '{print $2}'; }
-SHIM=$(out_of root//nix:shim)/bin/nix-store-shim
+SHIM=$(out_of root//nix:dirlir-tools)/bin/dirlir-shim
 CXXLAYER=$(out_of root//layers:cxx-toolchain)
 OPENSSL=$(out_of root//layers:openssl)
 
