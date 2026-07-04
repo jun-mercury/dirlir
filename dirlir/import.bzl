@@ -48,14 +48,17 @@ def _dir_subpath_impl(ctx):
             cmd_args(layer.dir, format = "{{}}/{}".format(ctx.attrs.path)),
             out.as_output(),
         ],
+        audit = struct(
+            buildtools = ctx.attrs._buildtools[NixLayerInfo].dir,
+            pytools = ctx.attrs._pytools[DefaultInfo].default_outputs[0],
+        ),
     )
-    # local_only: this buck2's OSS RE client caches FindMissingBlobs
-    # responses without invalidating them after its own uploads, and every
-    # soft error is fatal in OSS builds -- a remote subpath output whose
-    # blobs buck2 itself uploaded earlier (layer contents) poisons later
-    # remote actions that consume it. Primary remedy if this must go
-    # remote: a carried buck2 patch (ADR-4).
-    ctx.actions.run(cmd, category = "dirlir_subpath", local_only = True)
+    # RE-able since the ADR-4 carried patch
+    # (nix/buck2/patches/0001-find-missing-cache-upload-invalidation.patch):
+    # without it, the OSS RE client's stale FindMissingBlobs cache poisoned
+    # remote consumers of subpath outputs whose blobs buck2 had uploaded
+    # earlier as layer contents.
+    ctx.actions.run(cmd, category = "dirlir_subpath")
     return [DefaultInfo(default_output = out)]
 
 # Excise a subtree (header dir, a shared library, ...) from a layer as a
@@ -66,10 +69,15 @@ dir_subpath = rule(
         "is_dir": attrs.bool(default = True),
         "layer": attrs.dep(providers = [NixLayerInfo]),
         "path": attrs.string(),
+        "_buildtools": attrs.default_only(attrs.exec_dep(
+            providers = [NixLayerInfo],
+            default = "root//layers:buildtools",
+        )),
         "_coreutils": attrs.default_only(attrs.exec_dep(
             providers = [NixLayerInfo],
             default = "root//layers:coreutils",
         )),
+        "_pytools": attrs.default_only(attrs.dep(default = "root//dirlir:tools")),
         "_tools": attrs.default_only(attrs.exec_dep(default = "root//nix:dirlir-tools")),
     },
 )

@@ -5,17 +5,16 @@
 
 load(":providers.bzl", "NixFeatureInfo")
 
-def _nix_packages(packages, forest = ["bin"]):
+def _nix_packages(packages):
     """Materialize nix package closures into <layer>/nix/store.
 
     packages: list of lockfile package names, optionally with an output
-        ("openssl.dev"). Closures are resolved from nix/lock.json.
-    forest: top-level dirs (bin, lib, include, ...) to expose as a
-        buildEnv-style relative-symlink forest at the layer root.
+        ("openssl.dev"). Closures resolve at load time from nix/lock.bzl;
+    content is addressed by absolute store path (no forests).
     """
     return struct(
         kind = "nix_packages",
-        spec = {"forest": forest, "packages": packages},
+        spec = {"packages": packages},
         srcs = {},
     )
 

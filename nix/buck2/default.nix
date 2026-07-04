@@ -42,7 +42,13 @@ rustPlatform.buildRustPackage {
     hash = "sha256-1GWZeCwX/lyJsBNTiPX/q0U68DLIQCWxE6NS514wemY=";
   };
 
-  patches = [ ]; # carried patches live in ./patches/*.patch
+  patches = [
+    # ADR-4 in action: the OSS RE client's FindMissingBlobs cache never
+    # learns about this client's own uploads, so a stale Missing entry
+    # poisons any later remote action whose input is byte-identical to a
+    # previously uploaded blob (chained remote layers, subpath excisions).
+    ./patches/0001-find-missing-cache-upload-invalidation.patch
+  ];
 
   cargoLock = {
     lockFile = ./Cargo.lock;

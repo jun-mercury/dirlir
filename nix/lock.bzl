@@ -4,8 +4,6 @@
 # NarHash as hex (snix serves uncompressed NARs, so buck2's native
 # download_file verifies the NarHash itself).
 
-PYTHON3 = "/nix/store/fk8c5cqd0npblqv1mcd8swhkcbng84qr-python3-3.14.4/bin/python3"
-
 PACKAGES = {
     "bash": {
         "storePath": "/nix/store/0641h8qfqaxnwrsw2nzrz6i1wbzyx92l-bash-interactive-5.3p9",
@@ -63,13 +61,6 @@ PACKAGES = {
         "outputs": {
             "debug": "/nix/store/g2pg1an3v5pm2fmwg1g7dw77ddpqirg7-python3-3.13.13-debug",
             "out": "/nix/store/l9k0anq0z7zz81zcwy035jfwap9ga6rl-python3-3.13.13",
-        },
-    },
-    "python314": {
-        "storePath": "/nix/store/fk8c5cqd0npblqv1mcd8swhkcbng84qr-python3-3.14.4",
-        "outputs": {
-            "debug": "/nix/store/y6nmlnw8360r8lma5bjnp07vl9r4l07g-python3-3.14.4-debug",
-            "out": "/nix/store/fk8c5cqd0npblqv1mcd8swhkcbng84qr-python3-3.14.4",
         },
     },
     "strace": {
@@ -517,31 +508,6 @@ PATHS = {
         "sha256": "80fb60bbf05a1bb57328b4c6afd81ecc46218139cd199b3a8770b2176165ad57",
         "url": "https://nixos.snix.store/nar/snix-castore/GjwSOi9uaXgvc3RvcmUvNXI5NWIzejc1cmM5ODBkd3Mwd3A1eWxhd2d6ZmtqNmwtZ2NjLTE1LjIuMC1tYW4?narsize=176",
     },
-    "/nix/store/fk8c5cqd0npblqv1mcd8swhkcbng84qr-python3-3.14.4": {
-        "nar_size": 141306616,
-        "references": [
-            "/nix/store/12cm2m4pdfanj5li94hwxpdfzrfdfngj-sqlite-3.51.2",
-            "/nix/store/75bbfamip7akc94cpds1zq3xrjsj048y-gdbm-1.26-lib",
-            "/nix/store/8gyg3xn9i8xdz42yhbl0d3vmmz8phcs0-bzip2-1.0.8",
-            "/nix/store/8kvxvr3pmsypxiypq4g8zy13glnfr7nx-glibc-2.42-67",
-            "/nix/store/bbk5ss80g5rgnwgn9b8br4l29km8plh9-xz-5.8.3",
-            "/nix/store/chc8cxmnqxgnf4i0y89m292wm6290qsy-libffi-3.5.2",
-            "/nix/store/dbz6pb9g67kpgpl95k8d85kzpxm1c32p-zlib-1.3.2",
-            "/nix/store/fsvb5zrsm1n7m5wshm570imspffi7i8f-zstd-1.5.7",
-            "/nix/store/ga3b95jkyvknam1nxl25r95nyk87ix25-tzdata-2026b",
-            "/nix/store/hngmi01i8wgi25a0byrxcn4ysz5j79mw-gcc-15.2.0-lib",
-            "/nix/store/im7mcigg1x2bq9rg7z3h3i26pjmss0c7-readline-8.3p3",
-            "/nix/store/l0vl4dali2mvbpi30a8da1f71jl85myg-openssl-3.6.2",
-            "/nix/store/lawdl6fwyj55dign3dasn96cy1asgags-expat-2.8.1",
-            "/nix/store/mxq1r9w2w2y9lsqb5fkcyb5xbbki1n57-ncurses-6.6",
-            "/nix/store/nvzf6a62pyd9fsddawhl2dwhm7sjcby4-util-linux-minimal-2.42-lib",
-            "/nix/store/xakkd7mhg6dindq35ji8smr4j9ypwpn7-mailcap-2.1.54",
-            "/nix/store/xnlpfhi3m3in4b1h8h905hpv97gc8b07-mpdecimal-4.0.1",
-            "/nix/store/zh1ijdhb6gng1509b1zrilb6xlzx60j6-bash-5.3p9",
-        ],
-        "sha256": "7740bd47a64be8ad256c3dd17100e4dfe33bfee185e554cf997d04799a39d219",
-        "url": "https://nixos.snix.store/nar/snix-castore/CiUSIF93wLSPOigGTXURAwTJd3xqjOD6BHbK9mvwcXAatE7YGLA5?narsize=141306616",
-    },
     "/nix/store/fr3qqvg4iylba6hpf53pr9k27ddv2826-libarchive-3.8.7-lib": {
         "nar_size": 972616,
         "references": [
@@ -930,13 +896,6 @@ PATHS = {
         "sha256": "d779680355355886c80b1c832f348cc5750ef325d8b61a21b1d8b5932d47826e",
         "url": "https://nixos.snix.store/nar/snix-castore/CiQSIEyI7CKhezBTrvTOgQriocc4zuxXXEiC7Ot88N217DStGA4?narsize=740848",
     },
-    "/nix/store/vwj66jmx32xbw97zwbajmncp028kb93a-Python-3.14.4.tar.xz": {
-        "nar_size": 23855448,
-        "references": [
-        ],
-        "sha256": "1ad02322494940b35236dda03c13e9aec8bf49bb99120364d8fb14cecc6f62de",
-        "url": "https://nixos.snix.store/nar/snix-castore/EicSINckf9dWgNphMPJv-H3_8t6N_tLXdQHa1Z8fkfj4529qGOSBsAs?narsize=23855448",
-    },
     "/nix/store/w73y27sld7x920ffnipw3a8xd1agchdl-nghttp2-1.69.0-lib": {
         "nar_size": 230728,
         "references": [
@@ -1030,17 +989,6 @@ PATHS = {
         ],
         "sha256": "eb0a63de220e8817d381c3dc0110221118e9b46635a6697856c448dbe89440ee",
         "url": "https://nixos.snix.store/nar/snix-castore/CiQSIOAbGPcgCMSadJghPQHZ7qahGyf1wveNz5ZYPz1Ni5mIGCo?narsize=3018256",
-    },
-    "/nix/store/y6nmlnw8360r8lma5bjnp07vl9r4l07g-python3-3.14.4-debug": {
-        "nar_size": 28360536,
-        "references": [
-            "/nix/store/fk8c5cqd0npblqv1mcd8swhkcbng84qr-python3-3.14.4",
-            "/nix/store/vwj66jmx32xbw97zwbajmncp028kb93a-Python-3.14.4.tar.xz",
-            "/nix/store/xakkd7mhg6dindq35ji8smr4j9ypwpn7-mailcap-2.1.54",
-            "/nix/store/zh1ijdhb6gng1509b1zrilb6xlzx60j6-bash-5.3p9",
-        ],
-        "sha256": "cde0ae961944acc0c609de4f1123c063c942e5b6bff23d52cf2c27d10a25cb4a",
-        "url": "https://nixos.snix.store/nar/snix-castore/CiUSIBmBMEqj5rCyBRHAQYg6ybuVWLZvfq78Di3mw1tPyPM9GMgH?narsize=28360536",
     },
     "/nix/store/ylirzjzp6fxm8xdp8547kbbshbwydxs2-libmicrohttpd-1.0.2": {
         "nar_size": 266632,

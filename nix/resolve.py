@@ -191,12 +191,7 @@ def emit_lock_bzl(packages: dict, paths: dict) -> str:
         "# NarHash as hex (snix serves uncompressed NARs, so buck2's native",
         "# download_file verifies the NarHash itself).",
         "",
-        # The pinned local-action interpreter; deleted in M6 with dir_layer v2.
     ]
-    py = packages.get("python314")
-    if py:
-        lines.append(f'PYTHON3 = "{py["storePath"]}/bin/python3"')
-        lines.append("")
     lines.append("PACKAGES = {")
     for name in sorted(packages):
         pkg = packages[name]

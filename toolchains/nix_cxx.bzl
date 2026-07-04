@@ -40,6 +40,10 @@ def _tool(ctx, name):
         shim,
         [cmd_args(layer.dir, format = "{}/nix/store")],
         ["{}/{}".format(ctx.attrs.bin, name)],
+        audit = struct(
+            buildtools = ctx.attrs._buildtools[NixLayerInfo].dir,
+            pytools = ctx.attrs._pytools[DefaultInfo].default_outputs[0],
+        ),
     ))
 
 def _nix_cxx_toolchain_impl(ctx):
@@ -130,10 +134,15 @@ nix_cxx_toolchain = rule(
         "layer": attrs.exec_dep(providers = [NixLayerInfo]),
         "link_flags": attrs.list(attrs.arg(), default = []),
         "link_style": attrs.string(default = "shared"),
+        "_buildtools": attrs.default_only(attrs.exec_dep(
+            providers = [NixLayerInfo],
+            default = "root//layers:buildtools",
+        )),
         "_internal_tools": attrs.default_only(attrs.exec_dep(
             providers = [CxxInternalTools],
             default = "prelude//cxx/tools:internal_tools",
         )),
+        "_pytools": attrs.default_only(attrs.dep(default = "root//dirlir:tools")),
         "_shim": attrs.default_only(attrs.exec_dep(default = "root//nix:dirlir-tools")),
     },
     is_toolchain_rule = True,

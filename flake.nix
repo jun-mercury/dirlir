@@ -34,9 +34,9 @@
 
       devShells.${system}.default = pkgs.mkShell {
         # buck2 is our from-source, patch-ready build (nix/buck2/), NOT the
-        # nixpkgs binary repackage. python314: the interpreter for local
-        # buck2 actions until M6 removes the pin.
-        packages = [ buck2 pkgs.python314 pkgs.jq ];
+        # nixpkgs binary repackage. python3 is for resolve.py and test
+        # scripts only -- no action pins an interpreter anymore.
+        packages = [ buck2 pkgs.python3 pkgs.jq ];
       };
     };
 }

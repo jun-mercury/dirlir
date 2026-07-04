@@ -4,4 +4,4 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 exec python3 nix/resolve.py "$@" \
-    gcc openssl python3 python314 hello coreutils bash ghc strace
+    gcc openssl python3 hello coreutils bash ghc strace

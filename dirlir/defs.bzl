@@ -1,23 +1,21 @@
-# dir_layer: antlir2's image.layer analog producing a plain directory tree.
+# dirlir layers.
 #
-# Two actions per layer, preserving antlir2's plan/compile split:
-#   1. dirlir_plan (depgraph.py): validate feature provides/requires against
-#      the lockfile and parent facts, toposort, resolve nix closures
-#      -> plan.json. Conflicts fail here, before any materialization.
-#   2. dirlir_materialize (materialize.py): copy parent, fetch+unpack NARs
-#      from binary caches (verifying FileHash and NarHash), rewrite absolute
-#      store symlinks to relative, apply features -> the tree + facts.json.
+# nix_closure: a featureless layer — zero-copy composition of per-path
+# artifacts (variant C), facts written at analysis time.
 #
-# Both actions are local_only: they need network and the lockfile-pinned
-# python. Everything CONSUMING a layer sees only the tree artifact (+ the
-# static shim) and is remote-execution compatible -- the same posture as
-# antlir2's local-only btrfs builds with RE-able consumers.
+# dir_layer: antlir2's image.layer analog with features. ONE action
+# (category dirlir_layer) runs layer.py through dirlir-shim with the
+# buildtools closure provisioned: validate (the depgraph, first, cheap) →
+# toposort → assemble → slim facts. Hermetic and RE-able: every input is
+# an artifact; no network, no lockfile, no host interpreter.
 
-load("//nix:lock.bzl", "PYTHON3")
 load(":features.bzl", "feature_rule")
 load(":lock_util.bzl", "closure", "parse_spec")
 load(":nar.bzl", "NixStorePathInfo")
 load(":providers.bzl", "NixFeatureInfo", "NixLayerInfo")
+load(":shim.bzl", "shim_run")
+
+_PYTHON3 = parse_spec("python3") + "/bin/python3"
 
 def _nix_closure_impl(ctx):
     entries = {}
@@ -34,7 +32,7 @@ def _nix_closure_impl(ctx):
             default_output = out,
             sub_targets = {"facts": [DefaultInfo(default_output = facts_out)]},
         ),
-        NixLayerInfo(dir = out, facts = facts_out, lock = None),
+        NixLayerInfo(dir = out, facts = facts_out),
     ]
 
 _nix_closure = rule(
@@ -45,13 +43,7 @@ _nix_closure = rule(
 )
 
 def nix_closure(name, packages, visibility = None):
-    """A featureless layer: the closure of `packages`, composed zero-copy.
-
-    Variant C (PLAN-v2 M1): the store is a symlinked_dir of per-path
-    artifacts; symlinks inside them stay absolute and resolve through the
-    shim's deref mounts. Facts are written at analysis time — the closure
-    is fully known from the lock at load time; no action inspects a tree.
-    """
+    """A featureless layer: the closure of `packages`, composed zero-copy."""
     paths = closure([parse_spec(s) for s in packages])
     _nix_closure(
         name = name,
@@ -62,39 +54,33 @@ def nix_closure(name, packages, visibility = None):
 def _dir_layer_impl(ctx):
     features = [f[NixFeatureInfo] for f in ctx.attrs.features]
     parent = ctx.attrs.parent_layer[NixLayerInfo] if ctx.attrs.parent_layer else None
-    tools = ctx.attrs._tools[DefaultInfo].default_outputs[0]
+    tools = ctx.attrs._pytools[DefaultInfo].default_outputs[0]
+    shim = ctx.attrs._shim[DefaultInfo].default_outputs[0]
+    buildtools = ctx.attrs._buildtools[NixLayerInfo]
 
-    plan = ctx.actions.declare_output("plan.json")
-    plan_cmd = cmd_args(
-        PYTHON3,
-        cmd_args(tools, format = "{}/tools/depgraph.py"),
-        "--lock",
-        ctx.attrs.lock,
-        "--out",
-        plan.as_output(),
-    )
-    if parent:
-        plan_cmd.add("--parent-facts", parent.facts)
-    for f in features:
-        plan_cmd.add("--feature", f.feature_json)
-    ctx.actions.run(plan_cmd, category = "dirlir_plan", local_only = True)
-
-    # Feature srcs, keyed by "<feature index>:<name>" to match plan ids.
     srcs = {}
     for i, f in enumerate(features):
         for name, artifact in f.srcs.items():
             srcs["{}:{}".format(i, name)] = artifact
     srcs_json = ctx.actions.write_json("srcs.json", srcs, with_inputs = True)
 
+    store_map = {}
+    for dep in ctx.attrs.store_paths:
+        info = dep[NixStorePathInfo]
+        store_map[info.store_path] = info.dir
+    store_map_json = ctx.actions.write_json(
+        "store_map.json",
+        store_map,
+        with_inputs = True,
+    )
+
     out = ctx.actions.declare_output("layer", dir = True)
     facts = ctx.actions.declare_output("facts.json")
-    mat_cmd = cmd_args(
-        PYTHON3,
-        cmd_args(tools, format = "{}/tools/materialize.py"),
-        "--plan",
-        plan,
-        "--lock",
-        ctx.attrs.lock,
+    argv = cmd_args(
+        _PYTHON3,
+        cmd_args(tools, format = "{}/tools/layer.py"),
+        "--store-map",
+        store_map_json,
         "--srcs",
         srcs_json,
         "--out",
@@ -102,19 +88,25 @@ def _dir_layer_impl(ctx):
         "--facts-out",
         facts.as_output(),
     )
+    for f in features:
+        argv.add("--feature", f.feature_json)
     if parent:
-        mat_cmd.add("--parent", parent.dir)
-    ctx.actions.run(mat_cmd, category = "dirlir_materialize", local_only = True)
+        argv.add("--parent", parent.dir, "--parent-facts", parent.facts)
+
+    cmd = shim_run(
+        shim,
+        [cmd_args(buildtools.dir, format = "{}/nix/store")],
+        [argv],
+        audit = struct(buildtools = buildtools.dir, pytools = tools),
+    )
+    ctx.actions.run(cmd, category = "dirlir_layer")
 
     return [
         DefaultInfo(
             default_output = out,
-            sub_targets = {
-                "facts": [DefaultInfo(default_output = facts)],
-                "plan": [DefaultInfo(default_output = plan)],
-            },
+            sub_targets = {"facts": [DefaultInfo(default_output = facts)]},
         ),
-        NixLayerInfo(dir = out, facts = facts, lock = ctx.attrs.lock),
+        NixLayerInfo(dir = out, facts = facts),
     ]
 
 _dir_layer = rule(
@@ -124,43 +116,51 @@ _dir_layer = rule(
             attrs.dep(providers = [NixFeatureInfo]),
             default = [],
         ),
-        "lock": attrs.source(default = "root//nix:lock.json"),
         "parent_layer": attrs.option(
             attrs.dep(providers = [NixLayerInfo]),
             default = None,
         ),
-        "_tools": attrs.default_only(
-            attrs.dep(default = "root//dirlir:tools"),
+        "store_paths": attrs.list(
+            attrs.dep(providers = [NixStorePathInfo]),
+            default = [],
         ),
+        "_buildtools": attrs.default_only(attrs.exec_dep(
+            providers = [NixLayerInfo],
+            default = "root//layers:buildtools",
+        )),
+        "_pytools": attrs.default_only(attrs.dep(default = "root//dirlir:tools")),
+        "_shim": attrs.default_only(attrs.exec_dep(default = "root//nix:dirlir-tools")),
     },
 )
 
-def dir_layer(name, features = [], parent_layer = None, visibility = None, lock = None):
-    """Define a directory layer from a list of features.
+def dir_layer(name, features = [], parent_layer = None, visibility = None):
+    """Define a directory layer from a list of feature.* records.
 
-    features: feature.* records (inline) or labels of feature targets.
+    nix_packages closures resolve here, at load time; the layer action
+    receives per-path artifacts, never the lockfile.
     """
     deps = []
+    all_paths = {}
     for i, f in enumerate(features):
-        if type(f) == type(""):
-            deps.append(f)
-            continue
+        spec = dict(f.spec)
+        if f.kind == "nix_packages":
+            paths = closure([parse_spec(s) for s in spec["packages"]])
+            spec["closure"] = paths
+            for p in paths:
+                all_paths[p] = True
         fname = "{}--feature-{}".format(name, i)
         feature_rule(
             name = fname,
             kind = f.kind,
-            spec_json = json.encode(f.spec),
+            spec_json = json.encode(spec),
             srcs = f.srcs,
         )
         deps.append(":" + fname)
 
-    kwargs = {}
-    if lock != None:
-        kwargs["lock"] = lock
     _dir_layer(
         name = name,
         features = deps,
         parent_layer = parent_layer,
+        store_paths = ["root//nix:" + p.split("/")[-1] for p in all_paths],
         visibility = visibility,
-        **kwargs
     )

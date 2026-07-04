@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# dirlir-run — rung 0: run an arbitrary command (typically `buck2 build`)
+# inside a namespace where /nix/store is masked down to the build
+# infrastructure derived from the lock. Zero repo integration required.
+#
+# usage: tools/dirlir-run [--audit] [--kill-daemon] -- CMD [ARGS...]
+#
+#   --audit        no namespace; strace CMD and summarize successful opens
+#                  outside the allowed roots (over-approximation; the
+#                  enforced run is ground truth)
+#   --kill-daemon  kill a pre-existing buckd instead of refusing (keeps the
+#                  warm buck-out; only the daemon restarts)
+#   DIRLIR_ISOLATION=off   escape hatch: exec CMD directly
+#
+# Guarantees (ADR-7):
+#   - refuses if a buckd for this project is already alive OUTSIDE the
+#     namespace (it would execute every action unenclosed while the client
+#     looks enclosed — silent false hermeticity)
+#   - after the run, verifies the daemon shared our mount namespace; the
+#     banner is that check's output
+#   - the namespace runs under a PID namespace: the daemon cannot outlive
+#     the wrapper (no enclosed daemon left behind to poison later builds)
+set -euo pipefail
+
+AUDIT=0
+KILL_DAEMON=0
+ISODIR=v2
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --audit) AUDIT=1; shift ;;
+        --kill-daemon) KILL_DAEMON=1; shift ;;
+        --isolation-dir) ISODIR=$2; shift 2 ;;
+        --) shift; break ;;
+        *) echo "dirlir-run: unknown option $1" >&2; exit 2 ;;
+    esac
+done
+[ $# -gt 0 ] || { echo "usage: dirlir-run [--audit] [--kill-daemon] -- CMD..." >&2; exit 2; }
+
+cd "$(git rev-parse --show-toplevel)"
+
+if [ "${DIRLIR_ISOLATION:-}" = "off" ]; then
+    exec "$@"
+fi
+
+if [ "$AUDIT" -eq 1 ]; then
+    STRACE=$(command -v strace || true)
+    [ -n "$STRACE" ] || { echo "dirlir-run: --audit needs strace on PATH (devshell)" >&2; exit 2; }
+    exec python3 dirlir/tools/audit.py --strace "$STRACE" \
+        --allow /nix --allow "$HOME" -- "$@"
+fi
+
+# --- daemon policy -----------------------------------------------------
+# Self-heal: a record left by a previous NAMESPACED run holds a pid that was
+# only meaningful in its (reaped) PID namespace; any client would try to
+# kill whatever host process owns it now and EPERM out.
+DAEMON_DIR="$HOME/.buck/buckd$(pwd)/$ISODIR"
+if [ -e "$DAEMON_DIR/buckd.pid" ] &&
+   buck2 --isolation-dir "$ISODIR" status 2>&1 | grep -q "no buckd running"; then
+    rm -rf "$DAEMON_DIR"
+fi
+
+if command -v buck2 >/dev/null &&
+   ! buck2 --isolation-dir "$ISODIR" status 2>&1 | grep -q "no buckd running"; then
+    if [ "$KILL_DAEMON" -eq 1 ]; then
+        buck2 --isolation-dir "$ISODIR" kill >/dev/null 2>&1 || true
+    else
+        pid=$(buck2 --isolation-dir "$ISODIR" status 2>/dev/null | sed -n 's/.*"pid":[^0-9]*\([0-9]*\).*/\1/p' | head -1)
+        echo "dirlir-run: refusing: buckd for this project is running outside the namespace (pid ${pid:-unknown});" >&2
+        echo "dirlir-run: run 'buck2 kill' or pass --kill-daemon" >&2
+        exit 1
+    fi
+fi
+
+# --- allowlist: build infrastructure closures ---------------------------
+# buck2 has no persistent local action cache: a fresh daemon inside the
+# namespace re-executes the bootstrap `nix build`. Allowlist the nix
+# infrastructure (nix's closure, the flake's input sources, the already-
+# built tools output) so that sanctioned action works masked -- it only
+# re-evaluates and cache-hits, never builds.
+BUCK2_BIN=$(realpath "$(command -v buck2)")
+NIX_BIN=$(realpath "$(command -v nix)")
+GIT_BIN=$(realpath "$(command -v git)")
+TOOLS_OUT=$(nix build --no-link --print-out-paths .#dirlir-tools 2>/dev/null || true)
+FLAKE_SRCS=$(nix flake archive --json 2>/dev/null | grep -o '"/nix/store/[^"]*"' | tr -d '"' | sort -u || true)
+CP_BIN=$(realpath "$(command -v cp)")
+BASH_BIN=$(realpath "$(command -v bash)")
+AWK_BIN=$(realpath "$(command -v awk)")
+GREP_BIN=$(realpath "$(command -v grep)")
+SED_BIN=$(realpath "$(command -v sed)")
+CERT_FILE=$(realpath /etc/ssl/certs/ca-certificates.crt 2>/dev/null || true)
+CERT=$(sed -E 's|^(/nix/store/[^/]+).*|\1|' <<<"$CERT_FILE" || true)
+
+closure() { nix path-info --recursive "$1"; }
+DIRLIR_ALLOW=$({
+    closure "$BUCK2_BIN"
+    closure "$NIX_BIN"
+    closure "$GIT_BIN"
+    closure "$CP_BIN"
+    closure "$BASH_BIN"
+    closure "$AWK_BIN"
+    closure "$GREP_BIN"
+    closure "$SED_BIN"
+    if [ -n "${CERT:-}" ]; then closure "$CERT"; fi
+    if [ -n "${TOOLS_OUT:-}" ]; then echo "$TOOLS_OUT"; fi
+    if [ -n "${FLAKE_SRCS:-}" ]; then echo "$FLAKE_SRCS"; fi
+} | sort -u)
+
+# Store-direct PATH for the inside: /run/current-system and profile
+# symlinks resolve through masked system store paths.
+DIRLIR_PATH="$(dirname "$BUCK2_BIN"):$(dirname "$NIX_BIN"):$(dirname "$GIT_BIN"):$(dirname "$CP_BIN"):$(dirname "$BASH_BIN"):$(dirname "$AWK_BIN"):$(dirname "$GREP_BIN"):$(dirname "$SED_BIN")"
+export DIRLIR_ALLOW DIRLIR_PATH BUCK2_BIN CERT_FILE ISODIR
+export DIRLIR_CMD_ARGV0="$1"
+
+# PID namespace: the kernel reaps the daemon (and everything else) when the
+# wrapper exits — daemon lifetime == wrapper lifetime.
+exec unshare -rm --pid --fork --mount-proc \
+    bash "$(dirname "$(realpath "$0")")/dirlir-run-inner" "$@"

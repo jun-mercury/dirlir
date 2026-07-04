@@ -1,0 +1,41 @@
+diff --git a/remote_execution/oss/re_grpc/src/client.rs b/remote_execution/oss/re_grpc/src/client.rs
+index 73ec78c..e7a4a85 100644
+--- a/remote_execution/oss/re_grpc/src/client.rs
++++ b/remote_execution/oss/re_grpc/src/client.rs
+@@ -864,7 +864,19 @@ impl REClient {
+         metadata: RemoteExecutionMetadata,
+         request: UploadRequest,
+     ) -> anyhow::Result<UploadResponse> {
+-        upload_impl(
++        // dirlir carried patch (PLAN-v2 ADR-4): record every successfully
++        // uploaded digest as present, so the negative FindMissingBlobs
++        // cache cannot poison later actions whose inputs share content
++        // with blobs this client already uploaded (e.g. remote-produced
++        // outputs byte-identical to previously uploaded sources/layers).
++        let mut uploaded: Vec<TDigest> = Vec::new();
++        if let Some(blobs) = &request.inlined_blobs_with_digest {
++            uploaded.extend(blobs.iter().map(|b| b.digest.clone()));
++        }
++        if let Some(files) = &request.files_with_digest {
++            uploaded.extend(files.iter().map(|f| f.digest.clone()));
++        }
++        let res = upload_impl(
+             &self.instance_name,
+             request,
+             self.bystream_compressor,
+@@ -897,7 +909,14 @@ impl REClient {
+                 Ok(resp.into_inner())
+             },
+         )
+-        .await
++        .await;
++        if res.is_ok() {
++            let mut cache = self.find_missing_cache.lock().unwrap();
++            for d in uploaded {
++                cache.put(d, DigestRemoteState::ExistsOnRemote);
++            }
++        }
++        res
+     }
+ 
+     pub async fn upload_blob_with_digest(

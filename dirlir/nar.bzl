@@ -5,6 +5,7 @@
 # download is executed by buck2, not as an action process).
 
 load("@root//nix:lock.bzl", "PATHS")
+load(":shim.bzl", "SALT")
 
 NixStorePathInfo = provider(fields = {
     "dir": provider_field(typing.Any),  # Artifact: the unpacked store path
@@ -21,20 +22,26 @@ def _nix_path_impl(ctx):
     )
     tools = ctx.attrs._tools[DefaultInfo].default_outputs[0]
     base = ctx.attrs.store_path.split("/")[-1]
-    out = ctx.actions.declare_output(base, dir = True)
+    # Store entries can be directories OR single files (source tarballs in
+    # closures); unpack inside a wrapper dir and project the entry out.
+    out = ctx.actions.declare_output("root", dir = True)
     ctx.actions.run(
         cmd_args(
             cmd_args(tools, format = "{}/bin/nar-unpack"),
             "--size",
             str(ctx.attrs.nar_size),
             nar,
-            out.as_output(),
+            cmd_args(out.as_output(), format = "{{}}/{}".format(base)),
         ),
         category = "nar_unpack",
+        # The salt enters via env (digest-relevant); nar-unpack has no
+        # argv slot for it and needs none.
+        env = {"DIRLIR_SALT": SALT} if SALT else {},
     )
+    entry = out.project(base)
     return [
-        DefaultInfo(default_output = out),
-        NixStorePathInfo(dir = out, store_path = ctx.attrs.store_path),
+        DefaultInfo(default_output = entry),
+        NixStorePathInfo(dir = entry, store_path = ctx.attrs.store_path),
     ]
 
 nix_path = rule(

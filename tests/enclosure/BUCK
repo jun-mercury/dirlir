@@ -1,0 +1,16 @@
+# M6 enclosure demos (tests cell: these are driven by tests/enclosure.sh
+# with specific -c dirlir.isolation flags; some MUST fail).
+
+# Fails under isolation=off (host /etc visible -> #error), compiles clean
+# under enforce. Proves the mask, inverted so the green path is enforced.
+cxx_binary(
+    name = "leak-probe",
+    srcs = ["probe.c"],
+)
+
+# Fails under every mode (missing include); under enforce the failure must
+# carry the dirlir-shim trailer naming the escape hatch.
+cxx_binary(
+    name = "bad-include",
+    srcs = ["bad.c"],
+)

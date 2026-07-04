@@ -27,3 +27,10 @@
 [buck2]
   # The default notify watcher exhausts the host's inotify watch budget.
   file_watcher = fs_hash_crawler
+
+[dirlir]
+  # off | audit | enforce; per-invocation: buck2 build -c dirlir.isolation=off
+  isolation = enforce
+  # A small target whose build pulls the bootstrap tools as an exec dep;
+  # tools/dirlir-run warms it outside the mask (the bootstrap runs
+  # `nix build` and is the one action that needs the full host store).

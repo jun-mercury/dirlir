@@ -13,36 +13,56 @@
 # `[dirlir] salt` rides along the same way (offline-test invalidation: bump
 # it to re-run every shim-wrapped action while native downloads stay cached).
 
+load(":lock_util.bzl", "parse_spec")
+
 _ISOLATION = read_root_config("dirlir", "isolation", "enforce")
-_SALT = read_root_config("dirlir", "salt", "")
+
+# Public: nar.bzl threads the salt into nar-unpack directly (not
+# shim-wrapped; without it that action class would silently stay cached
+# across a salt bump).
+SALT = read_root_config("dirlir", "salt", "")
+_SALT = SALT
 
 _FAIL_HINT = (
     "rerun with -c dirlir.isolation=off to bypass or " +
     "-c dirlir.isolation=audit to compare"
 )
 
-def shim_run(shim, store_dirs, argv, isolation = None):
+def shim_run(shim, store_dirs, argv, isolation = None, audit = None):
     """cmd_args running `argv` through dirlir-shim with `store_dirs` provisioned.
 
     shim: the dirlir-tools dir artifact (bin/dirlir-shim inside).
     store_dirs: values usable as --store arguments (each a dir whose entries
         are store paths, e.g. cmd_args(layer.dir, format = "{}/nix/store")).
     isolation: optional override of the [dirlir] knob.
+    audit: struct(buildtools = <layer dir artifact>, pytools = <dirlir tools
+        dir artifact>) — required for audit mode (strace + summarizer live
+        there); unused artifacts cost nothing in other modes.
     """
     mode = isolation if isolation != None else _ISOLATION
     if mode not in ("off", "audit", "enforce"):
         fail("dirlir.isolation must be off|audit|enforce, got: " + mode)
-    if mode == "audit":
-        # Audit needs strace from the buildtools layer; arrives in M6.
-        fail("dirlir.isolation=audit is not wired yet (lands with the buildtools layer)")
 
     cmd = cmd_args(cmd_args(shim, format = "{}/bin/dirlir-shim"))
     for s in store_dirs:
         cmd.add("--store", s)
+    if mode == "audit":
+        if audit == None:
+            fail("dirlir.isolation=audit needs the caller to pass audit= " +
+                 "(buildtools + pytools); this call site does not support it")
+        cmd.add("--store", cmd_args(audit.buildtools, format = "{}/nix/store"))
     if mode == "enforce":
         cmd.add("--enclose", "--fail-hint", _FAIL_HINT)
     if _SALT:
         cmd.add("--salt", _SALT)
     cmd.add("--")
+    if mode == "audit":
+        cmd.add(
+            parse_spec("python3") + "/bin/python3",
+            cmd_args(audit.pytools, format = "{}/tools/audit.py"),
+            "--strace",
+            parse_spec("strace") + "/bin/strace",
+            "--",
+        )
     cmd.add(argv)
     return cmd

@@ -6,8 +6,11 @@
 
 def _nix_flake_tool_impl(ctx):
     out = ctx.actions.declare_output("out", dir = True)
+    # Explicit experimental-features: host nix.conf may be unreachable
+    # (inside dirlir-run's mask, /etc/nix resolves through masked store paths).
     script = (
-        'set -e; p=$(nix build --no-link --print-out-paths ".#{}"); ' +
+        'set -e; p=$(nix --extra-experimental-features "nix-command flakes" ' +
+        'build --no-link --print-out-paths ".#{}"); ' +
         'cp -r "$p" "$1"; chmod -R u+w "$1"'
     ).format(ctx.attrs.package)
     cmd = cmd_args(["sh", "-c", script, "sh", out.as_output()])

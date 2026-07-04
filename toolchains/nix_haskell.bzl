@@ -13,6 +13,10 @@ def _tool(ctx, name):
         shim,
         [cmd_args(layer.dir, format = "{}/nix/store")],
         ["{}/{}".format(ctx.attrs.bin, name)],
+        audit = struct(
+            buildtools = ctx.attrs._buildtools[NixLayerInfo].dir,
+            pytools = ctx.attrs._pytools[DefaultInfo].default_outputs[0],
+        ),
     ))
 
 def _nix_haskell_toolchain_impl(ctx):
@@ -38,6 +42,11 @@ nix_haskell_toolchain = rule(
         "compiler_major_version": attrs.string(default = "9"),
         "layer": attrs.exec_dep(providers = [NixLayerInfo]),
         "linker_flags": attrs.list(attrs.arg(), default = []),
+        "_buildtools": attrs.default_only(attrs.exec_dep(
+            providers = [NixLayerInfo],
+            default = "root//layers:buildtools",
+        )),
+        "_pytools": attrs.default_only(attrs.dep(default = "root//dirlir:tools")),
         "_shim": attrs.default_only(attrs.exec_dep(default = "root//nix:dirlir-tools")),
     },
     is_toolchain_rule = True,

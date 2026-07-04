@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Runs inside dirlir-run's namespace (root-mapped user+mount+pid ns).
+# Masks /nix/store down to $DIRLIR_ALLOW, runs CMD, then verifies the buckd
+# it spawned shared this mount namespace (the banner IS that check).
+set -euo pipefail
+
+HOST_COUNT=$(ls /nix/store | wc -l)
+
+# Stage allowlisted paths in a tmpfs while the store is still visible, then
+# flip the view in one final mount (tools keep working throughout).
+STAGE=/tmp/.dirlir-run-store
+mkdir -p "$STAGE"
+mount -t tmpfs none "$STAGE"
+for p in $DIRLIR_ALLOW; do
+    base=${p##*/}
+    if [ -d "$p" ]; then
+        mkdir "$STAGE/$base"
+    else
+        touch "$STAGE/$base"
+    fi
+    mount --bind "$p" "$STAGE/$base"
+done
+mount --rbind "$STAGE" /nix/store
+
+if [ -n "${CERT_FILE:-}" ]; then
+    export SSL_CERT_FILE="$CERT_FILE"
+fi
+export PATH="$DIRLIR_PATH"
+
+# Daemon records from previous namespaced runs hold pids that were only
+# meaningful inside their (now gone) PID namespace; buck2 would try to kill
+# whatever host process owns that pid today. The outer daemon policy already
+# dealt with any live daemon — clear the stale record (the daemon dir
+# mirrors the absolute project path).
+rm -rf "$HOME/.buck/buckd$(pwd)/$ISODIR" 2>/dev/null || true
+
+echo "dirlir-run: enclosing: $(ls /nix/store | wc -l) store roots visible (host store: $HOST_COUNT)"
+
+rc=0
+"$@" || rc=$?
+
+# --- mount-namespace invariant (unconditional) --------------------------
+# Any buckd alive for this isolation dir must share our mount namespace;
+# the wrapped command may be buck2 itself or a script that invoked it.
+dpid=$("$BUCK2_BIN" --isolation-dir "$ISODIR" status 2>/dev/null |
+    sed -n 's/.*"pid":[^0-9]*\([0-9]*\).*/\1/p' | head -1)
+if [ -n "${dpid:-}" ] && [ -e "/proc/$dpid/ns/mnt" ]; then
+    if [ "$(readlink /proc/$dpid/ns/mnt)" = "$(readlink /proc/self/ns/mnt)" ]; then
+        echo "dirlir-run: verified buckd (pid $dpid) shares this mount namespace"
+    else
+        echo "dirlir-run: FATAL: buckd (pid $dpid) is OUTSIDE this namespace — the build was NOT enclosed" >&2
+        exit 70
+    fi
+else
+    echo "dirlir-run: note: no live buckd found to verify (command may not have used buck2)"
+fi
+
+exit "$rc"

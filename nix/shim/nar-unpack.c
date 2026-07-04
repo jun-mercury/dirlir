@@ -199,6 +199,20 @@ int main(int argc, char **argv) {
     g_in = fopen(g_file, "rb");
     if (!g_in)
         die("cannot open%s", "");
+    // Create DEST's parent directories (the store entry may be a file or a
+    // directory; callers point DEST inside a wrapper dir they declared).
+    {
+        char parent[PATH_MAX];
+        snprintf(parent, sizeof parent, "%s", argv[i + 1]);
+        for (char *p = parent + 1; *p; p++) {
+            if (*p == '/') {
+                *p = '\0';
+                if (mkdir(parent, 0755) < 0 && errno != EEXIST)
+                    die("cannot mkdir '%s'", parent);
+                *p = '/';
+            }
+        }
+    }
     expect("nix-archive-1");
     restore_node(argv[i + 1]);
     // Exactly one archive; trailing bytes are an error.

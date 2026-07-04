@@ -88,7 +88,7 @@ buck2re() { buck2 --isolation-dir re "$@"; }
 
 echo "=== building via remote execution (fresh isolation dir)"
 buck2re build --config-file tests/re-demo/re.bcfg \
-    root//examples/hello_c:main root//examples/tls_demo:main
+    root//examples/hello_c:main root//examples/tls_demo:main root//layers:app
 
 echo "=== executor breakdown (what-ran):"
 buck2re log what-ran 2>/dev/null | awk -F'\t' '{print $3, $2}' |
