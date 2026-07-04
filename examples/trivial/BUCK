@@ -1,0 +1,5 @@
+genrule(
+    name = "gen",
+    out = "out.txt",
+    cmd = "echo hello-dirlir > $OUT",
+)
