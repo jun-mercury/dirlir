@@ -1,0 +1,33 @@
+load(":defs.bzl", "nar_download", "symlink_fixture", "symlink_reader")
+
+# S1: hello's NAR from snix, verified by buck2 against the locked NarHash.
+nar_download(
+    name = "s1-hello-nar",
+    sha256 = "6735e3d980e2c2478116f34df9c4e6211c929b2dd980ade8b74e2ecfc6796f38",
+    size_bytes = 279624,
+    url = "https://nixos.snix.store/nar/snix-castore/CiUSILd0unJhoKVQ9739Cz4rWe26E5M4aqpDXVP0tRKC-bhkGKYC?narsize=279624",
+)
+
+# S2 upload direction: produced locally, read remotely under RE.
+symlink_fixture(
+    name = "s2-fixture-local",
+    local_producer = True,
+)
+
+symlink_reader(
+    name = "s2-read-remote",
+    fixture = ":s2-fixture-local",
+    local_reader = False,
+)
+
+# S2 download direction: produced remotely, read locally.
+symlink_fixture(
+    name = "s2-fixture-remote",
+    local_producer = False,
+)
+
+symlink_reader(
+    name = "s2-read-local",
+    fixture = ":s2-fixture-remote",
+    local_reader = True,
+)

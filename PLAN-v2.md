@@ -403,3 +403,28 @@ honest hinge — no other serialized format gets designed or scaffolded in v2).
 9. CI bandwidth for uncompressed NARs — PR lane C-only, caches keyed on lock, nightly full.
 10. Trailer noise (printed on every nonzero exit under enforce) — accepted for self-explanatory
     failures (one line, names the off-switch); revisit if it drowns compile errors.
+
+---
+
+## M1 spike verdict (appended per plan)
+
+**Variant C — CONDITIONAL PASS** (per the acceptance rule: conditional because Buildbarn is
+untested; the symlink round-trip becomes the Buildbarn lane's first, non-allow-failure
+assertion in M8).
+
+- S1 ✅: `ctx.actions.download_file(url, sha256=narHash-hex, size_bytes=narSize)` against a live
+  snix castore URL succeeds; buck2 verifies the hash natively. Any transparent content-encoding
+  handling is irrelevant to the guarantee: the hash is checked over the bytes delivered, which
+  must be the NAR bytes to match.
+- S2 ✅: dir artifacts containing (i) an absolute dangling `/nix/store/...` symlink and (ii) a
+  relative symlink escaping the artifact root round-trip **bit-exact** through NativeLink CAS in
+  BOTH directions (local-produce → remote-read; remote-produce → local-materialize), verified by
+  manifest diff and readlink. No canonicalization, no rewriting.
+- S3 ✅: a symlinked_dir-style store (entries are symlinks to sibling artifacts) deref-mounts
+  correctly: resolve entries pre-masking, bind each resolved dir into the store view (in the
+  shell POC: staged tmpfs + final `--rbind`; in the shim: tmpfs at /nix/store + in-place binds,
+  all syscalls). `hello` and coreutils execute through the composed store.
+
+Implementation notes carried into M5: shim deref uses realpath-before-unshare (already the shim's
+pattern) + per-entry binds; final placement must be recursive-bind semantics where staging is
+involved. Spike fixtures live in `spikes/` until they graduate to `tests/symlink-roundtrip` (M8).
