@@ -19,7 +19,10 @@
       };
 
       devShells.${system}.default = pkgs.mkShell {
-        packages = with pkgs; [ buck2 python3 jq ];
+        # python314: the interpreter for local buck2 actions (depgraph /
+        # materialize) -- 3.14 because its stdlib decompresses the zstd NARs
+        # that cache.nixos.org serves. Also referenced by nix/lock.bzl.
+        packages = with pkgs; [ buck2 python314 jq ];
       };
     };
 }
