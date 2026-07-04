@@ -1,0 +1,4 @@
+buck-out/
+.direnv/
+result
+result-*
