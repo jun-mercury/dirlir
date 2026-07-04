@@ -1,0 +1,5 @@
+# Per-command overrides for the RE demo (the daemon-level RE client
+# settings live in .buckconfig.local, written by tests/re-demo.sh -- buck2
+# builds its RE client from the daemon startup config, not --config-file).
+[build]
+  execution_platforms = root//platforms:re

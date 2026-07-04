@@ -3,3 +3,4 @@ buck-out/
 result
 result-*
 __pycache__/
+.buckconfig.local

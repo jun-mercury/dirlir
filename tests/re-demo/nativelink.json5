@@ -1,0 +1,143 @@
+// Single-process NativeLink: CAS + action cache + scheduler + one local
+// worker, everything under /tmp/nativelink-dirlir. Adapted from the
+// upstream nativelink-config/examples/basic_cas.json5 (v1.5.2).
+{
+  stores: [
+    {
+      name: "AC_MAIN_STORE",
+      filesystem: {
+        content_path: "/tmp/nativelink-dirlir/content_path-ac",
+        temp_path: "/tmp/nativelink-dirlir/tmp_path-ac",
+        eviction_policy: {
+          max_bytes: 1000000000,
+        },
+      },
+    },
+    {
+      name: "WORKER_FAST_SLOW_STORE",
+      fast_slow: {
+        fast: {
+          filesystem: {
+            content_path: "/tmp/nativelink-dirlir/content_path-cas",
+            temp_path: "/tmp/nativelink-dirlir/tmp_path-cas",
+            eviction_policy: {
+              max_bytes: 10000000000,
+            },
+          },
+        },
+        // A real (not noop) slow store: existence checks consult the
+        // authoritative slow side, and with a noop there, FindMissingBlobs
+        // reports worker-produced output files as missing seconds after
+        // they were uploaded.
+        slow: {
+          filesystem: {
+            content_path: "/tmp/nativelink-dirlir/content_path-cas-slow",
+            temp_path: "/tmp/nativelink-dirlir/tmp_path-cas-slow",
+            eviction_policy: {
+              max_bytes: 10000000000,
+            },
+          },
+        },
+      },
+    },
+  ],
+  schedulers: [
+    {
+      name: "MAIN_SCHEDULER",
+      simple: {
+        supported_platform_properties: {
+          cpu_count: "minimum",
+          OSFamily: "priority",
+          "container-image": "priority",
+        },
+      },
+    },
+  ],
+  workers: [
+    {
+      local: {
+        worker_api_endpoint: {
+          uri: "grpc://127.0.0.1:50061",
+        },
+        cas_fast_slow_store: "WORKER_FAST_SLOW_STORE",
+        upload_action_result: {
+          ac_store: "AC_MAIN_STORE",
+        },
+        work_directory: "/tmp/nativelink-dirlir/work",
+        platform_properties: {
+          cpu_count: {
+            values: ["16"],
+          },
+          OSFamily: {
+            values: [""],
+          },
+          "container-image": {
+            values: [""],
+          },
+        },
+      },
+    },
+  ],
+  servers: [
+    {
+      name: "public",
+      listener: {
+        http: {
+          socket_address: "127.0.0.1:50051",
+        },
+      },
+      services: {
+        cas: [
+          {
+            instance_name: "main",
+            cas_store: "WORKER_FAST_SLOW_STORE",
+          },
+        ],
+        ac: [
+          {
+            instance_name: "main",
+            ac_store: "AC_MAIN_STORE",
+          },
+        ],
+        execution: [
+          {
+            instance_name: "main",
+            cas_store: "WORKER_FAST_SLOW_STORE",
+            scheduler: "MAIN_SCHEDULER",
+          },
+        ],
+        capabilities: [
+          {
+            instance_name: "main",
+            remote_execution: {
+              scheduler: "MAIN_SCHEDULER",
+            },
+          },
+        ],
+        bytestream: [
+          {
+            instance_name: "main",
+            cas_store: "WORKER_FAST_SLOW_STORE",
+          },
+        ],
+      },
+    },
+    {
+      name: "private_workers_servers",
+      listener: {
+        http: {
+          socket_address: "127.0.0.1:50061",
+        },
+      },
+      services: {
+        worker_api: {
+          scheduler: "MAIN_SCHEDULER",
+        },
+        health: {},
+      },
+    },
+  ],
+  global: {
+    max_open_files: 24576,
+  },
+}

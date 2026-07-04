@@ -4,7 +4,7 @@
 
 PYTHON3 = "/nix/store/fk8c5cqd0npblqv1mcd8swhkcbng84qr-python3-3.14.4/bin/python3"
 
-SHIM_STORE_PATH = "/nix/store/ljg8wn27311mlkalfgyiksk4n855qh3c-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0"
+SHIM_STORE_PATH = "/nix/store/f4hz36d94p8pgrfd14gya5awhzwi144q-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0"
 
 PACKAGES = {
     "bash": {
@@ -49,9 +49,9 @@ PACKAGES = {
         },
     },
     "nix-store-shim": {
-        "storePath": "/nix/store/ljg8wn27311mlkalfgyiksk4n855qh3c-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0",
+        "storePath": "/nix/store/f4hz36d94p8pgrfd14gya5awhzwi144q-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0",
         "outputs": {
-            "out": "/nix/store/ljg8wn27311mlkalfgyiksk4n855qh3c-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0",
+            "out": "/nix/store/f4hz36d94p8pgrfd14gya5awhzwi144q-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0",
         },
     },
     "openssl": {

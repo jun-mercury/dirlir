@@ -1,0 +1,9 @@
+load("@prelude//platforms:defs.bzl", "host_configuration")
+load(":defs.bzl", "re_execution_platform")
+
+re_execution_platform(
+    name = "re",
+    cpu_configuration = host_configuration.cpu,
+    os_configuration = host_configuration.os,
+    visibility = ["PUBLIC"],
+)

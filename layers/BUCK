@@ -22,6 +22,15 @@ dir_layer(
     visibility = ["PUBLIC"],
 )
 
+# Backs dir_subpath's in-layer cp (RE workers have no host tools).
+dir_layer(
+    name = "coreutils",
+    features = [
+        feature.nix_packages(packages = ["coreutils"]),
+    ],
+    visibility = ["PUBLIC"],
+)
+
 nix_tool(
     name = "python3-tool",
     layer = ":python",

@@ -57,24 +57,43 @@ nix_tool = rule(
 
 def _dir_subpath_impl(ctx):
     layer = ctx.attrs.layer[NixLayerInfo]
+    coreutils = ctx.attrs._coreutils[NixLayerInfo]
+    shim = ctx.attrs._shim[DefaultInfo].default_outputs[0]
     out = ctx.actions.declare_output("out", dir = ctx.attrs.is_dir)
-    # -L dereferences forest symlinks: the excised subtree must stand alone.
+    # cp comes from the coreutils layer via the shim (RE workers have no
+    # host tools at all); -L dereferences forest symlinks so the excised
+    # subtree stands alone.
     cmd = cmd_args(
-        "cp",
+        cmd_args(shim, format = "{}/bin/nix-store-shim"),
+        "--store",
+        cmd_args(coreutils.dir, format = "{}/nix/store"),
+        "--",
+        cmd_args(coreutils.dir, format = "{}/bin/cp"),
         "-rL",
         cmd_args(layer.dir, format = "{{}}/{}".format(ctx.attrs.path)),
         out.as_output(),
     )
-    ctx.actions.run(cmd, category = "dirlir_subpath")
+    # local_only, like the rest of the dirlir machinery. It would run fine
+    # on RE, but this buck2's OSS RE client caches FindMissingBlobs
+    # responses without invalidating them after its own uploads, and every
+    # soft error is fatal in OSS builds -- so a remote subpath output whose
+    # blobs buck2 itself uploaded earlier (layer contents) poisons later
+    # remote actions that consume it.
+    ctx.actions.run(cmd, category = "dirlir_subpath", local_only = True)
     return [DefaultInfo(default_output = out)]
 
 # Excise a subtree (header dir, a shared library, ...) from a layer as a
-# plain artifact, e.g. for prebuilt_cxx_library. RE-able.
+# plain artifact, e.g. for prebuilt_cxx_library.
 dir_subpath = rule(
     impl = _dir_subpath_impl,
     attrs = {
         "is_dir": attrs.bool(default = True),
         "layer": attrs.dep(providers = [NixLayerInfo]),
         "path": attrs.string(),
+        "_coreutils": attrs.default_only(attrs.exec_dep(
+            providers = [NixLayerInfo],
+            default = "root//layers:coreutils",
+        )),
+        "_shim": attrs.default_only(attrs.exec_dep(default = "root//nix:shim")),
     },
 )

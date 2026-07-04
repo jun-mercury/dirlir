@@ -1,11 +1,15 @@
 // nix-store-shim: run a program with a directory bind-mounted at /nix/store.
 //
-// usage: nix-store-shim --store DIR [--store DIR]... -- PROG [ARGS]...
+// usage: nix-store-shim [--store DIR]... [--map-user N] [--map-group N]
+//                       -- PROG [ARGS]...
 //
 // Each DIR plays the role of /nix/store itself (its entries are store paths).
-// The shim creates a user+mount namespace mapped to the invoking uid/gid,
-// mounts the store dir(s) at /nix/store (masking any host store), and execs
-// PROG. Children (cc1, as, ld, ...) inherit the namespace.
+// The shim creates a user+mount namespace mapped to the invoking uid/gid
+// (or to --map-user/--map-group when given, e.g. to appear as a non-root
+// user inside an outer root-mapped namespace), mounts the store dir(s) at
+// /nix/store (masking any host store), and execs PROG. Children (cc1, as,
+// ld, ...) inherit the namespace. With no --store, it is a plain userns
+// exec wrapper.
 //
 // If the host has no /nix at all (a bare remote-execution worker; /nix cannot
 // be created inside a userns because / is owned by unmapped root), the shim
@@ -23,6 +27,7 @@
 #include <string.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -138,20 +143,39 @@ static void setup_newroot(char resolved[][PATH_MAX], int nstores,
         die(p);
     mount_stores_at(resolved, nstores, p);
 
-    if (chroot(base) < 0)
-        die("chroot");
+    // pivot_root, NOT chroot: the kernel refuses unshare(CLONE_NEWUSER)
+    // for chrooted processes, which would break nested shims (e.g. a
+    // dep-file-processing python shim spawning the gcc shim).
+    snprintf(p, sizeof p, "%s/.oldroot", base);
+    if (mkdir(p, 0755) < 0 && errno != EEXIST)
+        die(p);
+    if (syscall(SYS_pivot_root, base, p) < 0)
+        die("pivot_root");
+    if (chdir("/") < 0)
+        die("chdir /");
+    if (umount2("/.oldroot", MNT_DETACH) < 0)
+        die("umount old root");
+    rmdir("/.oldroot");
     if (chdir(cwd) < 0)
-        die("chdir after chroot");
+        die("chdir after pivot_root");
 }
 
 int main(int argc, char **argv) {
     const char *stores[MAX_STORES];
     int nstores = 0;
+    uid_t map_uid = getuid();
+    gid_t map_gid = getgid();
     int i = 1;
     while (i < argc) {
         if (strcmp(argv[i], "--store") == 0 && i + 1 < argc &&
             nstores < MAX_STORES) {
             stores[nstores++] = argv[i + 1];
+            i += 2;
+        } else if (strcmp(argv[i], "--map-user") == 0 && i + 1 < argc) {
+            map_uid = (uid_t)atoi(argv[i + 1]);
+            i += 2;
+        } else if (strcmp(argv[i], "--map-group") == 0 && i + 1 < argc) {
+            map_gid = (gid_t)atoi(argv[i + 1]);
             i += 2;
         } else if (strcmp(argv[i], "--") == 0) {
             i++;
@@ -160,10 +184,10 @@ int main(int argc, char **argv) {
             break;
         }
     }
-    if (nstores == 0 || i >= argc) {
+    if (i >= argc) {
         fprintf(stderr,
-                "usage: nix-store-shim --store DIR [--store DIR]... -- "
-                "PROG [ARGS]...\n");
+                "usage: nix-store-shim [--store DIR]... [--map-user N] "
+                "[--map-group N] -- PROG [ARGS]...\n");
         return 2;
     }
 
@@ -179,20 +203,22 @@ int main(int argc, char **argv) {
     gid_t gid = getgid();
     if (unshare(CLONE_NEWUSER | CLONE_NEWNS) < 0)
         die("unshare(CLONE_NEWUSER|CLONE_NEWNS)");
-    // Map uid/gid to themselves so created files keep real ownership.
-    // setgroups must be denied before gid_map can be written.
+    // Map uid/gid (to themselves by default, so created files keep real
+    // ownership). setgroups must be denied before gid_map can be written.
     char map[64];
-    snprintf(map, sizeof map, "%u %u 1", (unsigned)uid, (unsigned)uid);
+    snprintf(map, sizeof map, "%u %u 1", (unsigned)map_uid, (unsigned)uid);
     write_file("/proc/self/uid_map", map);
     write_file("/proc/self/setgroups", "deny");
-    snprintf(map, sizeof map, "%u %u 1", (unsigned)gid, (unsigned)gid);
+    snprintf(map, sizeof map, "%u %u 1", (unsigned)map_gid, (unsigned)gid);
     write_file("/proc/self/gid_map", map);
 
     if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) < 0)
         die("remount / private");
 
     struct stat st;
-    if (stat("/nix/store", &st) == 0 && S_ISDIR(st.st_mode)) {
+    if (nstores == 0) {
+        // Plain userns exec wrapper; nothing to mount.
+    } else if (stat("/nix/store", &st) == 0 && S_ISDIR(st.st_mode)) {
         mount_stores_at(resolved, nstores, "/nix/store");
     } else if (mkdir("/nix", 0755) == 0 || errno == EEXIST) {
         // /nix missing but / (or /nix) is writable to us; try the direct way.

@@ -57,9 +57,9 @@
     "nix-store-shim": {
       "attr": ".#nix-store-shim",
       "outputs": {
-        "out": "/nix/store/ljg8wn27311mlkalfgyiksk4n855qh3c-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0"
+        "out": "/nix/store/f4hz36d94p8pgrfd14gya5awhzwi144q-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0"
       },
-      "storePath": "/nix/store/ljg8wn27311mlkalfgyiksk4n855qh3c-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0"
+      "storePath": "/nix/store/f4hz36d94p8pgrfd14gya5awhzwi144q-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0"
     },
     "openssl": {
       "attr": "openssl",
@@ -503,6 +503,18 @@
         "/nix/store/5r95b3z75rc980dws0wp5ylawgzfkj6l-gcc-15.2.0-man"
       ]
     },
+    "/nix/store/f4hz36d94p8pgrfd14gya5awhzwi144q-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0": {
+      "nar": {
+        "cache": 1,
+        "compression": "xz",
+        "fileHash": "sha256-S/lTJTZhwaRkXBpHoPdGuWthWEUwjjUDb+QCZ+yBtqo=",
+        "fileSize": 24048,
+        "url": "nar/1amnh7n6f0p4dw1kb3ih8mc62sxr8vvs0iqsbija9hb16qjm7yab.nar.xz"
+      },
+      "narHash": "sha256-lTMhKn0UmzWPrhxWXpmSjbSkhpo9GeU1M/tB1KpuG8M=",
+      "narSize": 54368,
+      "references": []
+    },
     "/nix/store/fk8c5cqd0npblqv1mcd8swhkcbng84qr-python3-3.14.4": {
       "nar": {
         "cache": 0,
@@ -751,18 +763,6 @@
       "references": [
         "/nix/store/8kvxvr3pmsypxiypq4g8zy13glnfr7nx-glibc-2.42-67"
       ]
-    },
-    "/nix/store/ljg8wn27311mlkalfgyiksk4n855qh3c-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0": {
-      "nar": {
-        "cache": 1,
-        "compression": "xz",
-        "fileHash": "sha256-qDuxaL5nT7Vk9s2fgkKEqGMiwyua77xiwDvEmisNw0k=",
-        "fileSize": 23732,
-        "url": "nar/0jf31lmrmi1vq1ibrvws5g1j4qx8hi1857ydyrjbakv7prlb2fx8.nar.xz"
-      },
-      "narHash": "sha256-GTlMt58L5wCOHuD0HRDMqpIa92ULPInBMbqu3q0EkZ8=",
-      "narSize": 54312,
-      "references": []
     },
     "/nix/store/mcapcw0qc4v6h1k41997675ybqnhzdc1-binutils-2.46-info": {
       "nar": {
