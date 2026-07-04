@@ -42,6 +42,13 @@ PACKAGES = {
             "out": "/nix/store/xcnqqnhw9hb4j5rjgds2yjryi8qki5f3-gcc-wrapper-15.2.0",
         },
     },
+    "ghc": {
+        "storePath": "/nix/store/61a2wc7hwqg7mqb88g3n1l276zsyrx45-ghc-9.10.3",
+        "outputs": {
+            "doc": "/nix/store/d82g4qdgarx0rxbmgf9k68pr5135y1h6-ghc-9.10.3-doc",
+            "out": "/nix/store/61a2wc7hwqg7mqb88g3n1l276zsyrx45-ghc-9.10.3",
+        },
+    },
     "hello": {
         "storePath": "/nix/store/nm7p8wxflggcwxfzayhysq4z6a1wg373-hello-2.12.3",
         "outputs": {

@@ -1,6 +1,5 @@
 haskell_binary(
     name = "main",
     srcs = ["Main.hs"],
-    linker_flags = ["-dynamic"],
     visibility = ["PUBLIC"],
 )

@@ -22,6 +22,16 @@ dir_layer(
     visibility = ["PUBLIC"],
 )
 
+# The Haskell toolchain: nixpkgs ghc (its closure carries its own wrapped
+# gcc/binutils for linking).
+dir_layer(
+    name = "ghc",
+    features = [
+        feature.nix_packages(packages = ["ghc"]),
+    ],
+    visibility = ["PUBLIC"],
+)
+
 # Backs dir_subpath's in-layer cp (RE workers have no host tools).
 dir_layer(
     name = "coreutils",

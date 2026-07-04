@@ -36,8 +36,8 @@ fi
 fail=0
 buck2() { "$BUCK2_BIN" --isolation-dir "$ISO" "$@"; }
 
-echo "=== building C examples inside masked namespace (fresh isolation dir)"
-if ! buck2 build root//examples/hello_c:main root//examples/tls_demo:main; then
+echo "=== building C and Haskell examples inside masked namespace (fresh isolation dir)"
+if ! buck2 build root//examples/hello_c:main root//examples/tls_demo:main root//examples/hello_hs:main; then
     echo "HERMETIC TEST FAILED: build inside masked namespace failed"
     buck2 kill >/dev/null 2>&1 || true
     exit 1
@@ -47,14 +47,17 @@ out_of() { buck2 build "$1" --show-full-output 2>/dev/null | awk '{print $2}'; }
 SHIM=$(out_of root//nix:shim)/bin/nix-store-shim
 CXXLAYER=$(out_of root//layers:cxx-toolchain)
 OPENSSL=$(out_of root//layers:openssl)
+GHCLAYER=$(out_of root//layers:ghc)
 HELLO=$(out_of root//examples/hello_c:main)
 TLS=$(out_of root//examples/tls_demo:main)
+HS=$(out_of root//examples/hello_hs:main)
 
 echo "=== running built binaries through the shim (store still masked)"
 "$SHIM" --store "$CXXLAYER/nix/store" -- "$HELLO" || fail=1
 # tls needs libstdc++ (g++ link) from the gcc layer AND libssl from the
 # openssl layer: the shim merges both stores (multi-store tmpfs path).
 "$SHIM" --store "$CXXLAYER/nix/store" --store "$OPENSSL/nix/store" -- "$TLS" || fail=1
+"$SHIM" --store "$GHCLAYER/nix/store" -- "$HS" || fail=1
 
 echo "=== actions that ran inside the sandbox:"
 buck2 log what-ran 2>/dev/null |

@@ -15,7 +15,7 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-TARGETS=(root//examples/hello_c:main root//examples/tls_demo:main)
+TARGETS=(root//examples/hello_c:main root//examples/tls_demo:main root//examples/hello_hs:main)
 
 echo "=== warming NAR download cache"
 buck2 build "${TARGETS[@]}" >/dev/null
