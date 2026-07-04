@@ -1,231 +1,149 @@
 # dirlir — antlir2-shaped directory layers from Nix, as hermetic Buck2 toolchains
 
 dirlir transplants the architecture of [antlir2](https://github.com/facebook/antlir)
-(Meta's buck2-integrated, deterministic image builder — see Vinnie Magro's
-All Systems Go 2023 talk *"antlir2: Deterministic image builds with buck2"*)
-onto **Nix + Buck2**, with one deliberate change of product: instead of
-container images, it builds **plain directory trees**. Those trees are
-buck2 tree artifacts — natively content-addressed, CAS-uploadable, and
-therefore remote-execution compatible — and they serve as fully hermetic
-toolchains (gcc, ghc) and native dependencies (glibc, openssl) for buck2
-builds on workers that have **neither nix nor /nix/store**.
+(Meta's buck2-integrated, deterministic image builder) onto **Nix + Buck2**,
+producing plain **directory trees** instead of container images. The trees
+serve as fully hermetic toolchains (gcc, ghc) and native deps (glibc,
+openssl) for buck2 builds whose actions are **enclosed by default** and run
+identically on the local machine and on remote-execution workers that have
+**neither nix nor /nix/store — nor any other host tooling**.
 
 ## Concept mapping
 
-| antlir2 | dirlir |
+| antlir2 | dirlir v2 |
 |---|---|
-| flavor (pinned OS/package universe) | pinned nixpkgs via `flake.lock` |
-| snapshot RPM repos + versionlock JSON | cache.nixos.org + committed `nix/lock.json` (store paths, NarHashes, nar URLs) + committed `nix/cache/` file cache for repo-built derivations |
-| `image.layer` | `dir_layer` rule → output-directory tree artifact |
-| `feature.*` (install, rpms_install, symlink, remove, ...) | `feature.nix_packages`, `feature.install`, `feature.ensure_dirs_exist`, `feature.symlink`, `feature.remove` |
-| depgraph (Rust+SQLite; validates provides/requires, toposorts before building) | `dirlir/tools/depgraph.py` plan action → `plan.json`; facts flow parent → child |
-| compiler (userns-isolated, not nspawn, so it can run on RE) | `dirlir/tools/materialize.py` (NAR fetch/verify/unpack + feature application) |
-| btrfs subvolume (local-only) / cad-stack (RE) | buck2 tree artifact; parent chaining via `cp -a --reflink=auto` |
-| plan/compile split (dnf resolve → transaction → install exactly that) | resolve (nix eval + narinfo walk, run rarely, committed) → materialize (pure downloads by locked hash) |
-| runtime isolation | static userns **shim** (`nix/shim/shim.c`) bind-mounting layer stores at `/nix/store` |
-| packaging stage (tar/oci/ext4) | none — the directory is the product |
+| flavor (pinned package universe) | `flake.lock` |
+| snapshot RPM repos + versionlock | https://nixos.snix.store + committed `nix/lock.json`/`lock.bzl`, every narinfo **ed25519-verified** at resolve time |
+| `image.layer` | `nix_closure` (featureless, zero-copy) / `dir_layer` (features) |
+| `feature.*` | `feature.nix_packages / install / symlink / ensure_dirs_exist / remove` |
+| depgraph (validate → toposort, pre-build) | same logic, first phase of the single `dirlir_layer` action |
+| compiler isolation (userns, RE-able) | `dirlir-shim` provision/enclose (see below) |
+| btrfs local / cad-stack RE | buck2 tree artifacts; per-store-path artifacts + `symlinked_dir` composition |
+| plan/compile split for packages | resolve (signed narinfo walk, committed) → buck2-NATIVE downloads |
 
 ## Architecture
 
-### 1. Resolve — `nix/resolve.py` (the versionlock analog)
+```
+tools/resolve.sh                     one nix evaluation; narinfo closure walk over snix;
+  → nix/lock.json + nix/lock.bzl     every signature verified against pinned trusted keys
 
-Run occasionally (`nix develop -c python3 nix/resolve.py gcc openssl ...`),
-commit the outputs. It does the only nix evaluation in the whole system:
+root//nix:<store-path-basename>      one target per locked path (buck2 uquery = supply chain):
+  download_file(url, sha256=NarHash) buck2-native: snix serves UNCOMPRESSED NARs, so the
+                                     file hash IS the NarHash — verification needs no tool
+  nar-unpack (static C, exec_dep)    structural validation only; symlinks kept VERBATIM
 
-- evaluates requested attrs against the flake-pinned nixpkgs → output store paths;
-- walks the closure **via `.narinfo` fetches from cache.nixos.org** — no
-  local builds; the walk doubles as the guarantee that every path is
-  fetchable at materialize time (resolve fails fast, antlir2-style);
-- flake-local packages (the shim) are built and pushed to the committed
-  repo-local binary cache `nix/cache/` (`nix copy --to file://...`);
-- emits `nix/lock.json` (packages, and a `paths` table with narHash /
-  narSize / references / nar URL per store path) and `nix/lock.bzl`
-  (load-time mirror: the pinned action interpreter `PYTHON3`, the shim
-  store path, per-package output paths — Starlark cannot read JSON at
-  load time).
+nix_closure(packages)                store = symlinked_dir of per-path artifacts (zero-copy);
+                                     facts written at ANALYSIS time from the lock
 
-Closures are not stored per package; they are derived by walking the
-lockfile's `references` graph at plan time.
+dir_layer(features, parent_layer)    ONE enclosed action: dirlir-shim + python (from the
+                                     buildtools closure) runs layer.py: validate → toposort →
+                                     assemble → slim facts
 
-### 2. Layers — `dirlir/defs.bzl` (the image.layer analog)
+toolchains (cxx, haskell)            every tool = shim_run(/nix/store/<base>/bin/gcc, ...);
+                                     no forests — content addressed by absolute store path
+```
 
-`dir_layer(name, features=[...], parent_layer=...)` runs **two actions**,
-preserving antlir2's plan/compile split:
+Every action's inputs are artifacts; no action needs a host interpreter,
+host tools, the lockfile, or the network. The ONLY local_only action class
+is the bootstrap: `nix_flake_tool` builds the two static tools
+(`dirlir-shim`, `nar-unpack`) from this repo's flake via a local
+`nix build` (the buck2.nix pattern) — leaf exec_deps, CAS-cached, never
+run on RE workers, always in sync with the flake.
 
-1. **plan** (`dirlir_plan`): `depgraph.py` validates provides/requires
-   (Entry/Dir items per feature, validated against parent facts + the
-   lockfile), detects path conflicts naming both offending features,
-   toposorts within a fixed class order (`ensure_dirs_exist` →
-   `nix_packages` → `remove` → `install`/`symlink` — remove-before-install
-   enables antlir2-style replace-a-parent-file), resolves nix closures →
-   `plan.json`. All errors fire here, before any materialization.
-2. **materialize** (`dirlir_materialize`): copies the parent tree
-   (`cp -a --reflink=auto`), fetches NARs, applies features, emits the
-   tree + `facts.json` (a full walk consumed by child layers' plans).
+## dirlir-shim: provision / enclose / exec
 
-Both are `local_only = True` (they need network and the host-pinned
-python). **Everything consuming a layer sees only tree artifacts + the
-static shim and is RE-able** — the same posture as antlir2's local-only
-btrfs builds with RE-able consumers.
+- **provision** (additive): `--store DIR` merges DIR's entries into
+  `/nix/store` (entries resolved with realpath first, so symlinked_dir
+  compositions work). Masking the host store is the same operation.
+- **enclose** (subtractive): `--enclose` pivots into a minimal root —
+  provisioned store, exec root at its own path, fresh /tmp (mounted before
+  the exec-root bind: RE work dirs live under /tmp), /dev subset, fresh
+  /proc (new PID namespace; mounted pre-pivot per the kernel's
+  visible-proc rule), minimal /etc. `pivot_root`, never chroot (chrooted
+  processes cannot create nested user namespaces — dep-file processing
+  nests shims). `--map-user/--map-group` re-map identity (an RE worker
+  that looks like root privilege-drops actions to an unmapped uid).
+- **exec**: `-- PROG ARGS...`; `@argfile` (shim args only — the command's
+  own argfiles pass through); `--salt` (digest carrier);
+  `--fail-hint STR` — the failure trailer's escape-hatch wording is
+  INJECTED by the caller, never hardcoded.
 
-### 3. Materialization — pure NAR download (no nix at build time)
+## The isolation knob
 
-`materialize.py` + `nar.py` (python stdlib only; python 3.14 for stdlib
-zstd):
+`[dirlir] isolation = off | audit | enforce` (default enforce), read at
+load time and placed in `cmd_args`, so **each mode has distinct action
+digests** — an `off` build can never poison an `enforce` cache. Escape
+hatch: `buck2 build -c dirlir.isolation=off <target>`. `audit` = provision
+only + an strace summary of successful opens outside the allowed roots
+(over-approximation with a small ignore-list; enforce is ground truth).
+On failure under enforce, one stderr trailer names the visible roots and
+the exact `-c` flags to bypass or compare.
 
-- download the compressed NAR from the locked cache URL;
-- unpack with a ~100-line streaming NAR parser;
-- **verify the NarHash of the uncompressed stream against the lockfile**,
-  capped at the locked NarSize (decompression-bomb guard);
-- **rewrite every absolute `/nix/store/...` symlink target to relative**
-  (targets always stay within the tree) so the artifact is self-contained
-  for CAS upload — file *contents* (shebangs, PT_INTERP, RPATH) are never
-  touched; the runtime bind mount resolves them;
-- build buildEnv-style relative-symlink forests (`bin/`, `lib/`,
-  `include/`) at the layer root; collisions are hard errors.
+## dirlir-run (rung 0)
 
-**Discovery: FileHash cannot be locked.** cache.nixos.org re-compresses
-its zstd NARs server-side over time — the narinfo FileHash observed at
-resolve time does not match later downloads. The NarHash of the
-uncompressed stream (which is also what nix signatures cover) is the
-stable authority; the download cache (`~/.cache/dirlir/nars`) is keyed by
-it, and a bad cached file is refetched once.
+`tools/dirlir-run -- buck2 build //...` wraps an existing build — daemon
+included — in a namespace where /nix/store is masked to the build
+infrastructure (buck2, nix+git for the sanctioned bootstrap, coreutils,
+the flake's own sources). Guarantees: refuses a pre-existing outside
+daemon (`--kill-daemon` to proceed; warm buck-out survives, only the
+daemon restarts); verifies post-run that the daemon shared the mount
+namespace (the banner IS that check); runs under a PID namespace and
+removes the daemon record, so nothing enclosed outlives the wrapper.
+`--audit` straces arbitrary commands instead. `DIRLIR_ISOLATION=off`
+bypasses (env is fine here — dirlir-run has no cache to poison).
 
-### 4. The shim — `nix/shim/shim.c` (static musl, pkgsStatic)
+## User journey
 
-`nix-store-shim [--store DIR]... [--map-user N] [--map-group N] -- PROG ARGS...`
+- **R0** — zero repo changes: `nix develop -c tools/dirlir-run -- buck2 build //...`
+  (first hermeticity signal; `--audit` for the observability variant).
+- **R1** — adopt the toolchains; `[dirlir] isolation = enforce` is the
+  default. A leak fails loudly with the trailer naming the off-switch.
+- **R2** — wrap your own rules: `load("@root//dirlir:shim.bzl", "shim_run")`.
+- R3+ (future): prelude-wide per-action manifests, localhost-RE
+  per-action sandboxing, upstream integration. Users never see drivers or
+  the provision/enclose taxonomy: the surface is one command and one knob.
 
-- `unshare(CLONE_NEWUSER|CLONE_NEWNS)`, uid/gid mapped to the invoking
-  user (so outputs keep real ownership), `MS_REC|MS_PRIVATE` on `/`.
-- **Fast path** (host has `/nix/store`): bind the store dir over it —
-  mounting and masking the host store are the same operation. Multiple
-  `--store` dirs are merged via tmpfs + per-entry binds.
-- **Fallback** (bare RE worker, no `/nix`; it cannot be created inside a
-  userns because `/` belongs to unmapped root): rebuild the root in a
-  tmpfs — bind every top-level entry of `/`, add `nix/store` — then
-  **`pivot_root`, not `chroot`**: the kernel refuses
-  `unshare(CLONE_NEWUSER)` from chrooted processes, which would break
-  nested shims (buck2's dep-file processing wraps the compile in a
-  python shim that then spawns the gcc shim).
-- `--map-user/--map-group` turn the shim into a general userns exec
-  wrapper (used to run the RE worker itself; see below).
+## Buck2 from source, patch-ready
 
-Tool invocations inherit the namespace, so gcc's cc1/as/ld and ghc's
-subprocesses all resolve their hardcoded `/nix/store/...` interpreter,
-RPATH, and shebang paths through the mount. Nothing is ever rewritten
-inside file contents, so nix's hash self-references stay intact.
+`nix/buck2/` builds buck2 at an exact pinned rev (initially the version v1
+was characterized against) with the rev's nightly toolchain and a
+committed Cargo.lock (upstream ships none). The bundled prelude is
+embedded from the same tree by `build.rs` — the {buck2, prelude} pair is
+matched by construction. **Carried patches are the primary remedy for RE
+client misbehavior**: `patches/0001-find-missing-cache-upload-invalidation.patch`
+fixes the OSS FindMissingBlobs cache never learning about this client's
+own uploads (a stale Missing entry + OSS hard-failing soft errors poisoned
+any remote action consuming content byte-identical to a previously
+uploaded blob — chained layers, subpath excisions). With it, **every
+dirlir action runs remotely**: `local dirlir actions: 0` in the RE demo.
 
-The shim enters the build graph through `nix_store_import`, which
-materializes it from the committed `nix/cache/` via the same NAR pipeline
-— machines never need to build it.
+## Guarantees and their tests (CI: ci.yml per push, nightly.yml cold+full, liveness.yml weekly)
 
-### 5. Toolchains — `toolchains/nix_cxx.bzl`, `toolchains/nix_haskell.bzl`
+| Guarantee | Test |
+|---|---|
+| NAR parser rejects malformed input (traversal, truncation, bombs) | `tests/unit/run-nar-tests.sh` |
+| Signatures gate the lock; tampered fingerprints rejected | `tests/unit/test_ed25519.py`, resolve aborts |
+| Tampered locked hash ⇒ build fails, no artifact | `tests/tamper.sh` |
+| Bit-identical double builds; cross-machine identity vs goldens | `tests/determinism.sh` (type-aware manifest: symlinks literal) |
+| Network only in native downloads (and bootstrap) | `tests/offline.sh` (salt re-runs everything in a no-net namespace) |
+| Enclosure masks the host; failure UX; per-mode digests | `tests/enclosure.sh` (trailer TEXT asserted; re-execution proven) |
+| Compile touches nothing outside the minimal roots | `tests/isolate-audit.sh` (strace) |
+| Depgraph rejects conflicts/dangling requirements pre-build | `tests/depgraph-errors.sh` |
+| Full rebuild inside a masked namespace | `tests/hermetic.sh` (via dirlir-run) |
+| RE on a store-less worker; symlinks round-trip bit-exact FIRST | `tests/re-demo.sh` (NativeLink) |
+| Second backend (variant C conditional until green) | `tests/re-buildbarn.sh` (nightly, allow-failure lane; hard round-trip gate) |
+| Locked paths stay fetchable; narinfos immutable | `tests/liveness.py` |
 
-Modeled on the prelude's `_cxx_toolchain_from_cxx_tools_info`, with every
-tool a `RunInfo(shim --store <layer>/nix/store -- <layer>/bin/gcc)`; the
-layer directory rides along as a cmd_args input, so RE workers receive it
-automatically. Deliberate differences from the prelude version:
+## Known limitations
 
-- no `-fuse-ld=lld` injection (gnu ld from the layer);
-- binutils (`nm`, `objcopy`, `strip`, ...) come from the layer, not host
-  PATH;
-- links/archives are **not** forced local — all inputs are tracked, so
-  they are RE-able.
-
-The toolchain layer is just nixpkgs' wrapped `gcc`: the cc-wrapper bakes
-in glibc headers/crt/dynamic-linker AND forwards all bintools programs
-into its `bin/`, so adding `binutils` separately only creates forest
-collisions. `python_bootstrap` (used by prelude-internal helper scripts:
-dep-file processing, compilation databases) is the nix python layer via
-the shim. openssl is consumed as `prebuilt_cxx_library` via `dir_subpath`
-excisions (dereferencing copies made with the **coreutils layer's own cp
-through the shim** — RE workers have no host tools), with an absolute
-store RPATH that the shim's mounted store satisfies at run time.
-
-## Remote execution
-
-Proven with a local NativeLink (static musl release binary) running CAS +
-scheduler + worker, where the **worker runs inside a namespace with `/nix`
-masked read-only** — a genuinely store-less worker. Compile and link
-actions execute remotely (through the shim's pivot_root fallback); all
-`dirlir_*` actions (plan/materialize/import/subpath) stay local by
-design. dir_subpath would work remotely too, but this buck2's OSS RE
-client caches FindMissingBlobs responses without invalidating after its
-own uploads, and OSS buck2 hard-fails every soft error — so remote
-subpath outputs whose blobs buck2 uploaded earlier (as layer contents)
-poison later remote consumers; keeping it local sidesteps the bug.
-
-Configuration notes (all in `tests/re-demo.sh` / `tests/re-demo/`):
-
-- buck2 builds its RE client from the **daemon startup** buckconfig —
-  `.buckconfig.local` (written for the demo's duration), not
-  `--config-file`;
-- `digest_algorithms = SHA256` (NativeLink speaks SHA256, buck2's default
-  is SHA1);
-- buck2's isolation-dir state must be reset together with the CAS: with
-  deferred materialization, daemon state that remembers artifacts as
-  remotely-available outlives a wiped CAS, and buck2 cannot re-upload
-  inputs it never downloaded ("missing in the CAS but expected to
-  exist"). (Buck2's OSS RE client also records ttl=0 on execute-response
-  outputs — the eager `materializations = all` escape hatch named in its
-  own error message no longer exists in this buck2 version; a clean
-  CAS+state pairing avoids the whole class.);
-- a custom execution platform (`platforms/`) with `remote_enabled = True`
-  and `use_limited_hybrid = True` (the prelude default platform hardcodes
-  remote off); local_only actions still run locally;
-- **worker uid pitfall**: a worker that appears to run as root (uid 0 in
-  a root-mapped namespace) drops spawned actions to `nobody` — an
-  *unmapped* uid, and unmapped uids cannot create user namespaces, so the
-  shim EPERMs. The demo therefore starts the worker via the shim's
-  `--map-user` remap so it sees a normal non-zero uid. (With `/nix`
-  masked, no host binary — `unshare` included — exists, so only the
-  static shim can do this remap.)
-
-Deployment requirement for real RE fleets: workers must allow unprivileged
-user namespaces. Fallback for hardened fleets: pre-populate a `/nix/store`
-volume in the worker image and give the shim an `--if-missing`-style
-passthrough mode (not implemented).
-
-## Determinism model
-
-- `flake.lock` pins the package universe (the "flavor").
-- `nix/lock.json` pins every store path and its NarHash; buck2 actions
-  never run nix evaluation, so action cache keys are exactly right:
-  a resolve re-run that changes nothing is byte-identical (`--check`),
-  and one that changes a package re-runs precisely the affected layers.
-- NAR unpacking is byte-exact: `nix hash path` over an unpacked store
-  path equals the locked NarHash (verified in tests).
-- Materialized trees contain no absolute symlinks and no store-path
-  rewrites — bit-identical regardless of host.
-
-## Verification
-
-- `nix develop -c buck2 build root//...` — everything builds.
-- `nix develop -c ./tests/depgraph-errors.sh` — plan-time failures:
-  path conflict / dangling symlink / missing parent dir, each naming the
-  offending feature targets.
-- `nix develop -c ./tests/hermetic.sh` — rebuilds the C examples from a
-  fresh isolation dir inside a namespace where `/nix/store` is a tmpfs
-  holding only the build-infrastructure closures (buck2, action python,
-  coreutils/bash/awk/grep/sed, CA certs — 33 paths vs 118k on the host);
-  then runs the binaries under the shim with the gcc + openssl layer
-  stores merged. Any host-store dependence in an action ⇒ ENOENT ⇒ red.
-- `nix develop -c ./tests/re-demo.sh` — the NativeLink demo above.
-
-## Known limitations / future work
-
-- **Forest planning**: forest link names are only known at materialize
-  time (planning would need package listings in the lockfile), so forest
-  collisions are materialize-time, not plan-time, errors.
-- **Materialize on RE**: `materialize.py` is stdlib python + network; with
-  a python layer bootstrap (or a static rust port) and network-enabled
-  workers, layer materialization itself could run remotely.
-- **NAR download cache** (`~/.cache/dirlir/nars`) grows unboundedly; no GC.
-- **No users/groups/genrule features** (antlir2 has them; directories used
-  as toolchains don't need them).
-- **Layer size**: gcc ≈ 0.4 GB, ghc ≈ 2.5 GB per materialized copy in
-  buck-out (reflink-cheap on CoW filesystems) and one-time in CAS
-  (file-level dedup). `feature.remove` of `share/{doc,man,info,locale}`
-  is the mitigation; parent-less toolchain layers avoid copies.
-- **cache.nixos.org GC**: nixpkgs-unstable paths are effectively permanent,
-  but a self-hosted cache (or the repo file cache) is the durable answer.
+- Variant C (zero-copy closures, verbatim absolute symlinks) is proven on
+  local + NativeLink; the Buildbarn leg keeps it CONDITIONAL (REv2 makes
+  absolute-symlink handling per-server). Fallback (variant B: per-closure
+  unpack with relative rewriting) is a bounded swap: composition action +
+  an unpack manifest mode; toolchain addressing unchanged.
+- Raw layer traversal without the shim dangles absolute store symlinks by
+  design; every consumer is shim-mediated.
+- RE workers must allow unprivileged user namespaces (nested).
+- snix retention is externally owned: the weekly liveness sweep alarms;
+  `caches[]` re-points; a raw-NAR mirror (`nix store dump-path`) is the
+  documented plan-B (cache.nixos.org itself serves no uncompressed NARs).

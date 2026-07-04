@@ -1,0 +1,29 @@
+load(":defs.bzl", "symlink_fixture", "symlink_reader")
+
+# Upload direction: produced locally, read remotely under RE.
+symlink_fixture(
+    name = "s2-fixture-local",
+    fixture_py = "fixture.py",
+    local_producer = True,
+)
+
+symlink_reader(
+    name = "s2-read-remote",
+    fixture = ":s2-fixture-local",
+    local_reader = False,
+    reader_py = "reader.py",
+)
+
+# Download direction: produced remotely, read locally.
+symlink_fixture(
+    name = "s2-fixture-remote",
+    fixture_py = "fixture.py",
+    local_producer = False,
+)
+
+symlink_reader(
+    name = "s2-read-local",
+    fixture = ":s2-fixture-remote",
+    local_reader = True,
+    reader_py = "reader.py",
+)

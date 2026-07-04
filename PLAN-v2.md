@@ -428,3 +428,43 @@ assertion in M8).
 Implementation notes carried into M5: shim deref uses realpath-before-unshare (already the shim's
 pattern) + per-entry binds; final placement must be recursive-bind semantics where staging is
 involved. Spike fixtures live in `spikes/` until they graduate to `tests/symlink-roundtrip` (M8).
+
+---
+
+## Execution ADR amendments (M2–M8)
+
+- **ADR-1 resolved**: the prelude is an in-tree directory of the buck2 repo
+  (not a submodule); `app/buck2_external_cells_bundled/build.rs` embeds it
+  at cargo build time — matched by construction, verified by the full suite
+  under the from-source binary. Upstream ships no Cargo.lock (they build
+  buck2 with buck2); ours is generated once per rev and committed.
+  `RUSTFLAGS=--cfg tokio_unstable` required (buildRustPackage's vendoring
+  shadows upstream's .cargo/config.toml). protoc via nix protobuf env
+  override, exactly like upstream's own devshell.
+- **ADR-4 executed**: chained remote layers hit the OSS FindMissingBlobs
+  stale-cache bug in anger; carried patch 0001 records this client's
+  uploads as present. Result: dir_subpath un-pinned, `local dirlir
+  actions: 0` in the RE demo.
+- **ADR-7 amended**: teardown also removes the daemon RECORD (a reaped
+  namespace daemon leaves a pid meaningless outside; the next plain buck2
+  would try to kill an unrelated host process). dirlir-run additionally
+  self-heals stale records on entry (`buck2 status` reports "no buckd
+  running" with rc=0 — probe by text, not exit code).
+- **Bootstrap-in-the-mask**: buck2 has no persistent local action cache, so
+  a fresh namespaced daemon re-executes the bootstrap; dirlir-run therefore
+  allowlists the sanctioned nix infrastructure (nix+git closures, flake
+  input sources, the prebuilt tools output) and exports a store-direct PATH
+  (/run/current-system symlink chains die under the mask). The bootstrap
+  passes explicit `--extra-experimental-features` (host nix.conf resolves
+  through masked store paths on NixOS).
+- **M1 verdict update**: variant C additionally proven via the graduated
+  `tests/symlink-roundtrip` executing THROUGH shim actions on the
+  store-less NativeLink worker, both directions, as the RE demo's first
+  non-soft assertion. Still CONDITIONAL on the Buildbarn lane
+  (tests/re-buildbarn.sh, nightly, allow-failure until proven; hard
+  round-trip gate inside).
+- **Enclosure findings**: fresh /proc must be mounted BEFORE pivot_root
+  (kernel visible-proc rule); fresh /tmp before the exec-root bind (RE
+  work dirs live under /tmp); on NixOS /etc/hostname resolves through the
+  store, so the mask alone breaks it — mask-vs-enclose probes must use a
+  real host file (/etc/machine-id).

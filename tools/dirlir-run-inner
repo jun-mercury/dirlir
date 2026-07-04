@@ -55,4 +55,10 @@ else
     echo "dirlir-run: note: no live buckd found to verify (command may not have used buck2)"
 fi
 
+# Complete the teardown: the PID namespace reaps the daemon process on our
+# exit, so its record (with a namespace-local pid) is guaranteed stale —
+# leaving it would make the next PLAIN buck2 invocation try to kill an
+# unrelated host process.
+rm -rf "$HOME/.buck/buckd$(pwd)/$ISODIR" 2>/dev/null || true
+
 exit "$rc"

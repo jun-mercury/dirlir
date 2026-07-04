@@ -1,0 +1,81 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guarantees:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Allow unprivileged user namespaces (ubuntu-24.04 AppArmor)
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          # Canary: every hermeticity proof depends on this. Fail HERE.
+          unshare -rm true
+          echo "userns canary passed"
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      # The from-source buck2 closure is the expensive nix build (~30 min
+      # cold); cache the store keyed on the pin + patches.
+      - uses: nix-community/cache-nix-action@v6
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', 'nix/buck2/**', 'nix/shim/**') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-linux: 8G
+
+      # NAR-heavy buck-out state, keyed on the package lock.
+      - uses: actions/cache@v4
+        with:
+          path: buck-out
+          key: buck-out-${{ hashFiles('nix/lock.json', 'flake.lock', 'nix/buck2/**') }}-${{ github.run_id }}
+          restore-keys: |
+            buck-out-${{ hashFiles('nix/lock.json', 'flake.lock', 'nix/buck2/**') }}-
+
+      - name: Devshell (builds buck2 from source on cache miss)
+        run: nix develop -c buck2 --version
+
+      - name: Lockfile is current and signature-verified
+        run: nix develop -c tools/resolve.sh --check
+
+      - name: nar-unpack adversarial corpus + signature verification units
+        run: |
+          T=$(nix build .#dirlir-tools --no-link --print-out-paths)
+          nix develop -c ./tests/unit/run-nar-tests.sh "$T/bin/nar-unpack"
+          nix develop -c python3 tests/unit/test_ed25519.py
+
+      - name: Build everything
+        run: nix develop -c buck2 build root//...
+
+      - name: Depgraph validation errors
+        run: nix develop -c ./tests/depgraph-errors.sh
+
+      - name: Enclosure semantics, failure UX, digest separation
+        run: nix develop -c ./tests/enclosure.sh
+
+      - name: Supply-chain tamper rejection
+        run: nix develop -c ./tests/tamper.sh
+
+      - name: Access audit (strace)
+        run: nix develop -c ./tests/isolate-audit.sh
+
+      - name: Offline rebuild (network only in native downloads)
+        run: nix develop -c ./tests/offline.sh
+
+      - name: Determinism (double build + cross-machine golden)
+        run: nix develop -c ./tests/determinism.sh
+
+      - name: Hermetic rebuild via dirlir-run (rung 0)
+        run: nix develop -c ./tests/hermetic.sh
+
+      - name: Remote execution on a store-less NativeLink worker
+        run: nix develop -c ./tests/re-demo.sh

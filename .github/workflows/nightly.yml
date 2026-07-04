@@ -1,0 +1,57 @@
+name: nightly
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  cold-full:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Allow unprivileged user namespaces
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          unshare -rm true
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: nix-community/cache-nix-action@v6
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', 'nix/buck2/**', 'nix/shim/**') }}
+          gc-max-store-size-linux: 8G
+      # Deliberately NO buck-out cache: the nightly proves the cold path
+      # (full snix downloads, ghc included).
+      - name: Full build, cold
+        run: nix develop -c buck2 build root//...
+      - name: Full suite
+        run: |
+          nix develop -c ./tests/depgraph-errors.sh
+          nix develop -c ./tests/enclosure.sh
+          nix develop -c ./tests/tamper.sh
+          nix develop -c ./tests/isolate-audit.sh
+          nix develop -c ./tests/offline.sh
+          nix develop -c ./tests/determinism.sh
+          nix develop -c ./tests/hermetic.sh
+          nix develop -c ./tests/re-demo.sh
+
+  re-buildbarn:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    # Allow-failure until the lane is proven (PLAN-v2 M1 acceptance rule);
+    # the symlink round-trip inside the script is NOT soft — if the lane
+    # comes up, that check decides it.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Allow unprivileged user namespaces
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          unshare -rm true
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: nix-community/cache-nix-action@v6
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', 'nix/buck2/**', 'nix/shim/**') }}
+          gc-max-store-size-linux: 8G
+      - name: Buildbarn lane
+        run: nix develop -c ./tests/re-buildbarn.sh

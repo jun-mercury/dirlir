@@ -86,6 +86,19 @@ sleep 1  # let the worker register with the scheduler
 
 buck2re() { buck2 --isolation-dir re "$@"; }
 
+# FIRST assertion, never allow-failure on any backend: absolute + escaping
+# symlinks must round-trip bit-exact through this CAS (variant C's platform
+# assumption; see tests/symlink-roundtrip/).
+echo "=== symlink round-trip through the RE backend"
+buck2re build --config-file tests/re-demo/re.bcfg \
+    tests//symlink-roundtrip:s2-read-remote tests//symlink-roundtrip:s2-read-local
+RM=$(buck2re build --config-file tests/re-demo/re.bcfg tests//symlink-roundtrip:s2-read-remote --show-full-output 2>/dev/null | awk '{print $2}')
+RL=$(buck2re build --config-file tests/re-demo/re.bcfg tests//symlink-roundtrip:s2-read-local --show-full-output 2>/dev/null | awk '{print $2}')
+diff "$RM" "$RL" || { echo "RE DEMO FAILED: symlink round-trip mismatch"; exit 1; }
+grep -q -- "abs-link -> /nix/store/00000000000000000000000000000000-spike/bin/x" "$RM" ||
+    { echo "RE DEMO FAILED: absolute symlink not preserved"; exit 1; }
+echo "symlink round-trip: bit-exact"
+
 echo "=== building via remote execution (fresh isolation dir)"
 buck2re build --config-file tests/re-demo/re.bcfg \
     root//examples/hello_c:main root//examples/tls_demo:main root//layers:app

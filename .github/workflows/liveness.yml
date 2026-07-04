@@ -1,0 +1,20 @@
+name: liveness
+
+on:
+  schedule:
+    - cron: "43 5 * * 1"
+  workflow_dispatch:
+
+jobs:
+  locked-paths:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - name: Every locked NAR is fetchable and unchanged
+        # Signed narinfos are immutable: ANY upstream change is an alarm,
+        # not a refresh.
+        run: nix develop -c python3 tests/liveness.py
+      - name: Lockfile still reproduces byte-identically
+        run: nix develop -c tools/resolve.sh --check
