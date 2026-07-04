@@ -1,0 +1,10 @@
+load("//dirlir:defs.bzl", "dir_layer")
+load("//dirlir:features.bzl", "feature")
+
+dir_layer(
+    name = "hello",
+    features = [
+        feature.nix_packages(packages = ["hello"]),
+    ],
+    visibility = ["PUBLIC"],
+)

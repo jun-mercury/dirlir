@@ -2,3 +2,4 @@ buck-out/
 .direnv/
 result
 result-*
+__pycache__/
