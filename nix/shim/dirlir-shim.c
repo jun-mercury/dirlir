@@ -274,6 +274,12 @@ static void enclose(const char *cwd, uid_t uid, gid_t gid) {
     mkpath(base, cwd);
     snprintf(p, sizeof p, "%s%s", base, cwd);
     bind(cwd, p);
+    // ... and at the canonical /build, which becomes the working dir:
+    // tools that embed their cwd (gcc's DW_AT_comp_dir) then produce
+    // MACHINE-INDEPENDENT output — the nix sandbox does the same.
+    mkpath(base, "/build");
+    snprintf(p, sizeof p, "%s/build", base);
+    bind(cwd, p);
     enclose_dev(base);
     enclose_etc(base, uid, gid);
     // Fresh /proc for the new PID namespace. Must be mounted BEFORE the
@@ -284,7 +290,7 @@ static void enclose(const char *cwd, uid_t uid, gid_t gid) {
     if (mount("proc", p, "proc", 0, NULL) < 0)
         die("mount /proc");
 
-    pivot_into(base, cwd);
+    pivot_into(base, "/build");
 }
 
 // Provision without enclosure: keep the host view, replace /nix/store.
@@ -469,8 +475,8 @@ int main(int argc, char **argv) {
     if (code != 0) {
         fprintf(stderr,
                 "dirlir-shim[enclose]: command failed inside minimal root "
-                "(visible: /nix/store, %s, /tmp, /proc, /dev, minimal /etc); "
-                "%s\n",
+                "(visible: /nix/store, /build + %s (exec root), /tmp, /proc, "
+                "/dev, minimal /etc); %s\n",
                 cwd, fail_hint);
     }
     return code;
