@@ -249,6 +249,25 @@ static void enclose_etc(const char *base, uid_t uid, gid_t gid) {
     write_file(p, "127.0.0.1 localhost\n");
 }
 
+// Deterministic environment for enclosed commands: the host env must never
+// reach tools — nix develop exports out=<cwd>/outputs/out and nixpkgs'
+// ld-wrapper embeds $out/lib into RUNPATHs (a per-machine absolute path,
+// caught by the cross-machine determinism golden); locale vars change tool
+// behavior; CI exports arbitrary state. Only buck2's scratch path survives.
+static void enclose_env(void) {
+    const char *scratch = getenv("BUCK_SCRATCH_PATH");
+    char keep[PATH_MAX] = "";
+    if (scratch)
+        snprintf(keep, sizeof keep, "%s", scratch);
+    clearenv();
+    setenv("PATH", "/no-such-path", 1);
+    setenv("HOME", "/build", 1);
+    setenv("TMPDIR", "/tmp", 1);
+    setenv("TERM", "dumb", 1);
+    if (keep[0])
+        setenv("BUCK_SCRATCH_PATH", keep, 1);
+}
+
 // Build and enter the minimal root. Runs in the child of the PID-namespace
 // fork (so the fresh /proc matches the new PID namespace).
 static void enclose(const char *cwd, uid_t uid, gid_t gid) {
@@ -463,6 +482,7 @@ int main(int argc, char **argv) {
     if (child < 0)
         die("fork");
     if (child == 0) {
+        enclose_env();
         enclose(cwd, map_uid, map_gid);
         execvp(g_args[i], &g_args[i]);
         die(g_args[i]);

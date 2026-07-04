@@ -1337,4 +1337,4 @@ file nix/store/zlvydh6q1rv1jza79b21yhi07ic0dkkg-libidn2-2.3.8/share/locale/zh_CN
 dir  var/log
 dir  var/log/app
 == root//examples/hello_c:main
-file main x bddc07a5a6c4a459ee90ee5bd73b4edd4d81699cbb375fd7f33b109b656bcbe5
+file main x 3b83018fd1cdb7eba03e246bb10f1a67ca2f740b5a0adad36e72461a74b759ca
