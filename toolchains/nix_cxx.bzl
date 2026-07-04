@@ -30,16 +30,19 @@ load("@prelude//linking:lto.bzl", "LtoMode")
 load("@root//dirlir:providers.bzl", "NixLayerInfo")
 load("@root//dirlir:shim.bzl", "shim_run")
 
-def _tool(shim, layer_dir, rel):
+def _tool(ctx, name):
+    # Tools are addressed by their absolute store path (no forest); the
+    # layer artifact rides along as the --store input, and the shim's
+    # provisioned mount makes the path resolve — locally and on RE.
+    layer = ctx.attrs.layer[NixLayerInfo]
+    shim = ctx.attrs._shim[DefaultInfo].default_outputs[0]
     return RunInfo(args = shim_run(
         shim,
-        [cmd_args(layer_dir, format = "{}/nix/store")],
-        [cmd_args(layer_dir, format = "{{}}/{}".format(rel))],
+        [cmd_args(layer.dir, format = "{}/nix/store")],
+        ["{}/{}".format(ctx.attrs.bin, name)],
     ))
 
 def _nix_cxx_toolchain_impl(ctx):
-    layer = ctx.attrs.layer[NixLayerInfo]
-    shim = ctx.attrs._shim[DefaultInfo].default_outputs[0]
     dep_tracking = DepTrackingMode(ctx.attrs.cpp_dep_tracking_mode)
 
     return [
@@ -47,10 +50,10 @@ def _nix_cxx_toolchain_impl(ctx):
         CxxToolchainInfo(
             internal_tools = ctx.attrs._internal_tools[CxxInternalTools],
             linker_info = LinkerInfo(
-                linker = _tool(shim, layer.dir, "bin/g++"),
+                linker = _tool(ctx, "g++"),
                 linker_flags = ctx.attrs.link_flags,
                 post_linker_flags = [],
-                archiver = _tool(shim, layer.dir, "bin/ar"),
+                archiver = _tool(ctx, "ar"),
                 archiver_type = "gnu",
                 archiver_supports_argfiles = True,
                 generate_linker_maps = False,
@@ -79,32 +82,32 @@ def _nix_cxx_toolchain_impl(ctx):
             ),
             bolt_enabled = False,
             binary_utilities_info = BinaryUtilitiesInfo(
-                nm = _tool(shim, layer.dir, "bin/nm"),
-                objcopy = _tool(shim, layer.dir, "bin/objcopy"),
-                objdump = _tool(shim, layer.dir, "bin/objdump"),
-                ranlib = _tool(shim, layer.dir, "bin/ranlib"),
-                strip = _tool(shim, layer.dir, "bin/strip"),
+                nm = _tool(ctx, "nm"),
+                objcopy = _tool(ctx, "objcopy"),
+                objdump = _tool(ctx, "objdump"),
+                ranlib = _tool(ctx, "ranlib"),
+                strip = _tool(ctx, "strip"),
                 dwp = None,
                 bolt_msdk = None,
             ),
             cxx_compiler_info = CxxCompilerInfo(
-                compiler = _tool(shim, layer.dir, "bin/g++"),
+                compiler = _tool(ctx, "g++"),
                 preprocessor_flags = [],
                 compiler_flags = ctx.attrs.cxx_flags,
                 compiler_type = "gcc",
             ),
             c_compiler_info = CCompilerInfo(
-                compiler = _tool(shim, layer.dir, "bin/gcc"),
+                compiler = _tool(ctx, "gcc"),
                 preprocessor_flags = [],
                 compiler_flags = ctx.attrs.c_flags,
                 compiler_type = "gcc",
             ),
             as_compiler_info = CCompilerInfo(
-                compiler = _tool(shim, layer.dir, "bin/gcc"),
+                compiler = _tool(ctx, "gcc"),
                 compiler_type = "gcc",
             ),
             asm_compiler_info = CCompilerInfo(
-                compiler = _tool(shim, layer.dir, "bin/gcc"),
+                compiler = _tool(ctx, "gcc"),
                 compiler_type = "gcc",
             ),
             header_mode = HeaderMode("symlink_tree_only"),
@@ -120,6 +123,7 @@ def _nix_cxx_toolchain_impl(ctx):
 nix_cxx_toolchain = rule(
     impl = _nix_cxx_toolchain_impl,
     attrs = {
+        "bin": attrs.string(doc = "absolute store bin dir, e.g. /nix/store/<gcc>/bin"),
         "c_flags": attrs.list(attrs.arg(), default = []),
         "cpp_dep_tracking_mode": attrs.string(default = "makefile"),
         "cxx_flags": attrs.list(attrs.arg(), default = []),

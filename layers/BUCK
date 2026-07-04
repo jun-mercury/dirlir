@@ -1,69 +1,68 @@
-load("//dirlir:defs.bzl", "dir_layer")
+load("//dirlir:defs.bzl", "dir_layer", "nix_closure")
 load("//dirlir:features.bzl", "feature")
 load("//dirlir:import.bzl", "nix_tool")
+load("//dirlir:lock_util.bzl", "store_base")
 
-# The C toolchain: nixpkgs wrapped gcc, exposed as a bin/ forest. The
-# cc-wrapper already symlinks the bintools programs (ld, ar, nm, ...) into
-# its bin/, so adding binutils separately would only create forest
-# collisions -- the wrapped binutils rides along in the closure anyway.
-dir_layer(
+# The C toolchain: nixpkgs wrapped gcc. Its cc-wrapper carries the bintools
+# programs; tools are addressed as /nix/store/<base>/bin/<tool> (no forest).
+nix_closure(
     name = "cxx-toolchain",
-    features = [
-        feature.nix_packages(packages = ["gcc"]),
-    ],
+    packages = ["gcc"],
     visibility = ["PUBLIC"],
 )
 
-dir_layer(
+nix_closure(
     name = "python",
-    features = [
-        feature.nix_packages(packages = ["python3"]),
-    ],
-    visibility = ["PUBLIC"],
-)
-
-# The Haskell toolchain: nixpkgs ghc (its closure carries its own wrapped
-# gcc/binutils for linking).
-dir_layer(
-    name = "ghc",
-    features = [
-        feature.nix_packages(packages = ["ghc"]),
-    ],
-    visibility = ["PUBLIC"],
-)
-
-# Backs dir_subpath's in-layer cp (RE workers have no host tools).
-dir_layer(
-    name = "coreutils",
-    features = [
-        feature.nix_packages(packages = ["coreutils"]),
-    ],
+    packages = ["python3"],
     visibility = ["PUBLIC"],
 )
 
 nix_tool(
     name = "python3-tool",
     layer = ":python",
-    path = "bin/python3",
+    path = "nix/store/" + store_base("python3") + "/bin/python3",
     visibility = ["PUBLIC"],
 )
 
-dir_layer(
+# Backs dir_subpath's in-layer cp (RE workers have no host tools).
+nix_closure(
+    name = "coreutils",
+    packages = ["coreutils"],
+    visibility = ["PUBLIC"],
+)
+
+nix_closure(
     name = "openssl",
-    features = [
-        feature.nix_packages(
-            packages = ["openssl.dev", "openssl.out"],
-            forest = ["include", "lib"],
-        ),
-    ],
+    packages = ["openssl.dev", "openssl.out"],
     visibility = ["PUBLIC"],
 )
 
-dir_layer(
+# The Haskell toolchain: nixpkgs ghc (its closure carries its own wrapped
+# gcc/binutils for linking).
+nix_closure(
+    name = "ghc",
+    packages = ["ghc"],
+    visibility = ["PUBLIC"],
+)
+
+nix_closure(
     name = "hello",
-    features = [
-        feature.nix_packages(packages = ["hello"]),
-    ],
+    packages = ["hello"],
+    visibility = ["PUBLIC"],
+)
+
+# Demo/test layer: coreutils+bash so there are in-layer binaries to prove
+# store masking with.
+nix_closure(
+    name = "demo",
+    packages = ["bash", "coreutils", "hello"],
+    visibility = ["PUBLIC"],
+)
+
+# Tooling for dir_layer assembly actions and audit mode (M6).
+nix_closure(
+    name = "buildtools",
+    packages = ["python3", "coreutils", "strace"],
     visibility = ["PUBLIC"],
 )
 
@@ -87,17 +86,6 @@ dir_layer(
         feature.remove(path = "/etc/app/app.conf"),
         feature.install(src = "app2.conf", dst = "/etc/app/app.conf"),
         feature.ensure_dirs_exist(path = "/var/log/app"),
-    ],
-    visibility = ["PUBLIC"],
-)
-
-# Demo/test layer: coreutils+bash so there are in-layer binaries to prove
-# store masking with (on NixOS every host binary needs /nix/store, so host
-# tools cannot be used inside the shim's namespace).
-dir_layer(
-    name = "demo",
-    features = [
-        feature.nix_packages(packages = ["bash", "coreutils", "hello"]),
     ],
     visibility = ["PUBLIC"],
 )

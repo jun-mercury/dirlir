@@ -1,19 +1,20 @@
 load("//dirlir:import.bzl", "nix_tool")
+load("//dirlir:lock_util.bzl", "store_base")
 
 nix_tool(
     name = "hello",
     layer = "root//layers:demo",
-    path = "bin/hello",
+    path = "nix/store/" + store_base("hello") + "/bin/hello",
 )
 
 nix_tool(
     name = "ls",
     layer = "root//layers:demo",
-    path = "bin/ls",
+    path = "nix/store/" + store_base("coreutils") + "/bin/ls",
 )
 
 nix_tool(
     name = "sh",
     layer = "root//layers:demo",
-    path = "bin/sh",
+    path = "nix/store/" + store_base("bash") + "/bin/sh",
 )

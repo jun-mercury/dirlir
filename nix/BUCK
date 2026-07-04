@@ -1,10 +1,14 @@
 load("@root//dirlir:bootstrap.bzl", "nix_flake_tool")
+load("@root//dirlir:nar.bzl", "nix_store_paths")
 
 export_file(
     name = "lock.json",
     src = "lock.json",
     visibility = ["PUBLIC"],
 )
+
+# root//nix:<store-path-basename> for every locked path.
+nix_store_paths()
 
 # The static dirlir tools (dirlir-shim, nar-unpack), built from this repo's
 # flake by the bootstrap action -- the only local_only action class in v2.

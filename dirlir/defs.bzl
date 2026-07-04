@@ -15,7 +15,49 @@
 
 load("//nix:lock.bzl", "PYTHON3")
 load(":features.bzl", "feature_rule")
+load(":lock_util.bzl", "closure", "parse_spec")
+load(":nar.bzl", "NixStorePathInfo")
 load(":providers.bzl", "NixFeatureInfo", "NixLayerInfo")
+
+def _nix_closure_impl(ctx):
+    entries = {}
+    facts = {"nix": {"type": "dir"}, "nix/store": {"type": "dir"}}
+    for dep in ctx.attrs.store_paths:
+        info = dep[NixStorePathInfo]
+        rel = "nix/store/" + info.store_path.split("/")[-1]
+        entries[rel] = info.dir
+        facts[rel] = {"type": "store_path"}
+    out = ctx.actions.symlinked_dir("layer", entries)
+    facts_out = ctx.actions.write_json("facts.json", facts)
+    return [
+        DefaultInfo(
+            default_output = out,
+            sub_targets = {"facts": [DefaultInfo(default_output = facts_out)]},
+        ),
+        NixLayerInfo(dir = out, facts = facts_out, lock = None),
+    ]
+
+_nix_closure = rule(
+    impl = _nix_closure_impl,
+    attrs = {
+        "store_paths": attrs.list(attrs.dep(providers = [NixStorePathInfo])),
+    },
+)
+
+def nix_closure(name, packages, visibility = None):
+    """A featureless layer: the closure of `packages`, composed zero-copy.
+
+    Variant C (PLAN-v2 M1): the store is a symlinked_dir of per-path
+    artifacts; symlinks inside them stay absolute and resolve through the
+    shim's deref mounts. Facts are written at analysis time — the closure
+    is fully known from the lock at load time; no action inspects a tree.
+    """
+    paths = closure([parse_spec(s) for s in packages])
+    _nix_closure(
+        name = name,
+        store_paths = ["root//nix:" + p.split("/")[-1] for p in paths],
+        visibility = visibility,
+    )
 
 def _dir_layer_impl(ctx):
     features = [f[NixFeatureInfo] for f in ctx.attrs.features]

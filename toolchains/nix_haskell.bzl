@@ -6,24 +6,23 @@ load("@prelude//haskell:toolchain.bzl", "HaskellPlatformInfo", "HaskellToolchain
 load("@root//dirlir:providers.bzl", "NixLayerInfo")
 load("@root//dirlir:shim.bzl", "shim_run")
 
-def _tool(shim, layer_dir, rel):
+def _tool(ctx, name):
+    layer = ctx.attrs.layer[NixLayerInfo]
+    shim = ctx.attrs._shim[DefaultInfo].default_outputs[0]
     return RunInfo(args = shim_run(
         shim,
-        [cmd_args(layer_dir, format = "{}/nix/store")],
-        [cmd_args(layer_dir, format = "{{}}/{}".format(rel))],
+        [cmd_args(layer.dir, format = "{}/nix/store")],
+        ["{}/{}".format(ctx.attrs.bin, name)],
     ))
 
 def _nix_haskell_toolchain_impl(ctx):
-    layer = ctx.attrs.layer[NixLayerInfo]
-    shim = ctx.attrs._shim[DefaultInfo].default_outputs[0]
-
     return [
         DefaultInfo(),
         HaskellToolchainInfo(
-            compiler = _tool(shim, layer.dir, "bin/ghc"),
-            packager = _tool(shim, layer.dir, "bin/ghc-pkg"),
-            linker = _tool(shim, layer.dir, "bin/ghc"),
-            haddock = _tool(shim, layer.dir, "bin/haddock"),
+            compiler = _tool(ctx, "ghc"),
+            packager = _tool(ctx, "ghc-pkg"),
+            linker = _tool(ctx, "ghc"),
+            haddock = _tool(ctx, "haddock"),
             compiler_flags = ctx.attrs.compiler_flags,
             linker_flags = ctx.attrs.linker_flags,
             compiler_major_version = ctx.attrs.compiler_major_version,
@@ -34,6 +33,7 @@ def _nix_haskell_toolchain_impl(ctx):
 nix_haskell_toolchain = rule(
     impl = _nix_haskell_toolchain_impl,
     attrs = {
+        "bin": attrs.string(doc = "absolute store bin dir, e.g. /nix/store/<ghc>/bin"),
         "compiler_flags": attrs.list(attrs.arg(), default = []),
         "compiler_major_version": attrs.string(default = "9"),
         "layer": attrs.exec_dep(providers = [NixLayerInfo]),

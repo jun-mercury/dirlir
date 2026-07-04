@@ -1,6 +1,6 @@
 load("@prelude//toolchains:genrule.bzl", "system_genrule_toolchain")
 load("@prelude//toolchains:python.bzl", "python_bootstrap_toolchain")
-load("@root//nix:lock.bzl", "PACKAGES")
+load("@root//dirlir:lock_util.bzl", "parse_spec", "store_base")
 load(":nix_cxx.bzl", "nix_cxx_toolchain")
 load(":nix_haskell.bzl", "nix_haskell_toolchain")
 
@@ -20,14 +20,16 @@ python_bootstrap_toolchain(
 
 nix_cxx_toolchain(
     name = "cxx",
+    bin = parse_spec("gcc") + "/bin",
     layer = "root//layers:cxx-toolchain",
     visibility = ["PUBLIC"],
 )
 
 nix_haskell_toolchain(
     name = "haskell",
-    # "/nix/store/<h>-ghc-9.8.4" -> "9"
-    compiler_major_version = PACKAGES["ghc"]["storePath"].split("-")[-1].split(".")[0],
+    bin = parse_spec("ghc") + "/bin",
+    # "<h>-ghc-9.10.3" -> "9"
+    compiler_major_version = store_base("ghc").split("-")[-1].split(".")[0],
     layer = "root//layers:ghc",
     visibility = ["PUBLIC"],
 )

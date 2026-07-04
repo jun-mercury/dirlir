@@ -1,5 +1,6 @@
 # Bridges between layers and the rest of the buck2 graph.
 
+load(":lock_util.bzl", "parse_spec")
 load(":providers.bzl", "NixLayerInfo")
 load(":shim.bzl", "shim_run")
 
@@ -42,7 +43,7 @@ def _dir_subpath_impl(ctx):
             cmd_args(layer.dir, format = "{}/nix/store"),
         ],
         [
-            cmd_args(coreutils.dir, format = "{}/bin/cp"),
+            parse_spec("coreutils") + "/bin/cp",
             "-rL",
             cmd_args(layer.dir, format = "{{}}/{}".format(ctx.attrs.path)),
             out.as_output(),
