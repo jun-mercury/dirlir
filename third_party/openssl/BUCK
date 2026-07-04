@@ -1,0 +1,45 @@
+load("//dirlir:import.bzl", "dir_subpath")
+load("//nix:lock.bzl", "PACKAGES")
+
+# Excised, dereferenced pieces of the openssl layer for prebuilt_cxx_library.
+dir_subpath(
+    name = "include",
+    layer = "root//layers:openssl",
+    path = "include",
+)
+
+dir_subpath(
+    name = "libssl.so.3",
+    is_dir = False,
+    layer = "root//layers:openssl",
+    path = "lib/libssl.so.3",
+)
+
+dir_subpath(
+    name = "libcrypto.so.3",
+    is_dir = False,
+    layer = "root//layers:openssl",
+    path = "lib/libcrypto.so.3",
+)
+
+# Runtime resolution model: binaries get an absolute /nix/store RPATH; at
+# run time the openssl layer is mounted there by the shim (on nix hosts the
+# real store satisfies it too).
+_RPATH_FLAG = "-Wl,-rpath," + PACKAGES["openssl"]["outputs"]["out"] + "/lib"
+
+prebuilt_cxx_library(
+    name = "crypto",
+    exported_linker_flags = [_RPATH_FLAG],
+    header_dirs = [":include"],
+    shared_lib = ":libcrypto.so.3",
+    visibility = ["PUBLIC"],
+)
+
+prebuilt_cxx_library(
+    name = "ssl",
+    exported_deps = [":crypto"],
+    exported_linker_flags = [_RPATH_FLAG],
+    header_dirs = [":include"],
+    shared_lib = ":libssl.so.3",
+    visibility = ["PUBLIC"],
+)

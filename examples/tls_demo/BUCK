@@ -1,0 +1,6 @@
+cxx_binary(
+    name = "main",
+    srcs = ["main.c"],
+    visibility = ["PUBLIC"],
+    deps = ["root//third_party/openssl:ssl"],
+)

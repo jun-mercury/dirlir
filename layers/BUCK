@@ -1,5 +1,44 @@
 load("//dirlir:defs.bzl", "dir_layer")
 load("//dirlir:features.bzl", "feature")
+load("//dirlir:import.bzl", "nix_tool")
+
+# The C toolchain: nixpkgs wrapped gcc, exposed as a bin/ forest. The
+# cc-wrapper already symlinks the bintools programs (ld, ar, nm, ...) into
+# its bin/, so adding binutils separately would only create forest
+# collisions -- the wrapped binutils rides along in the closure anyway.
+dir_layer(
+    name = "cxx-toolchain",
+    features = [
+        feature.nix_packages(packages = ["gcc"]),
+    ],
+    visibility = ["PUBLIC"],
+)
+
+dir_layer(
+    name = "python",
+    features = [
+        feature.nix_packages(packages = ["python3"]),
+    ],
+    visibility = ["PUBLIC"],
+)
+
+nix_tool(
+    name = "python3-tool",
+    layer = ":python",
+    path = "bin/python3",
+    visibility = ["PUBLIC"],
+)
+
+dir_layer(
+    name = "openssl",
+    features = [
+        feature.nix_packages(
+            packages = ["openssl.dev", "openssl.out"],
+            forest = ["include", "lib"],
+        ),
+    ],
+    visibility = ["PUBLIC"],
+)
 
 dir_layer(
     name = "hello",

@@ -197,7 +197,14 @@ def emit_lock_bzl(packages: dict) -> str:
         lines.append("")
     lines.append("PACKAGES = {")
     for name in sorted(packages):
-        lines.append(f'    "{name}": "{packages[name]["storePath"]}",')
+        pkg = packages[name]
+        lines.append(f'    "{name}": {{')
+        lines.append(f'        "storePath": "{pkg["storePath"]}",')
+        lines.append('        "outputs": {')
+        for out in sorted(pkg["outputs"]):
+            lines.append(f'            "{out}": "{pkg["outputs"][out]}",')
+        lines.append("        },")
+        lines.append("    },")
     lines.append("}")
     lines.append("")
     return "\n".join(lines)

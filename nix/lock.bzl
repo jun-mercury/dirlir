@@ -7,13 +7,76 @@ PYTHON3 = "/nix/store/fk8c5cqd0npblqv1mcd8swhkcbng84qr-python3-3.14.4/bin/python
 SHIM_STORE_PATH = "/nix/store/ljg8wn27311mlkalfgyiksk4n855qh3c-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0"
 
 PACKAGES = {
-    "bash": "/nix/store/0641h8qfqaxnwrsw2nzrz6i1wbzyx92l-bash-interactive-5.3p9",
-    "binutils": "/nix/store/z4zcd87nx2hrsdayd0vl2mx5ncj3ikd8-binutils-wrapper-2.46",
-    "coreutils": "/nix/store/sr26flm2nkfa12dkrwj2630kqsfakky4-coreutils-9.11",
-    "gcc": "/nix/store/xcnqqnhw9hb4j5rjgds2yjryi8qki5f3-gcc-wrapper-15.2.0",
-    "hello": "/nix/store/nm7p8wxflggcwxfzayhysq4z6a1wg373-hello-2.12.3",
-    "nix-store-shim": "/nix/store/ljg8wn27311mlkalfgyiksk4n855qh3c-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0",
-    "openssl": "/nix/store/clvbx203wyqkdnqc5ngyhjlhcqn5s9x9-openssl-3.6.2-bin",
-    "python3": "/nix/store/l9k0anq0z7zz81zcwy035jfwap9ga6rl-python3-3.13.13",
-    "python314": "/nix/store/fk8c5cqd0npblqv1mcd8swhkcbng84qr-python3-3.14.4",
+    "bash": {
+        "storePath": "/nix/store/0641h8qfqaxnwrsw2nzrz6i1wbzyx92l-bash-interactive-5.3p9",
+        "outputs": {
+            "debug": "/nix/store/l76krav3w28kmd2b00lb687i1ykswvp0-bash-interactive-5.3p9-debug",
+            "dev": "/nix/store/44fi33grmrbkp2h80a31mqj5lqd3qfwp-bash-interactive-5.3p9-dev",
+            "doc": "/nix/store/5j2akpmlk107gzdqkms35r3nwhkwnibh-bash-interactive-5.3p9-doc",
+            "info": "/nix/store/pspjmjsphdkjsi20gpxh2p1aq6p73n1c-bash-interactive-5.3p9-info",
+            "man": "/nix/store/b67fr4nba948zxxpmdsnzqr06l9fnnag-bash-interactive-5.3p9-man",
+            "out": "/nix/store/0641h8qfqaxnwrsw2nzrz6i1wbzyx92l-bash-interactive-5.3p9",
+        },
+    },
+    "binutils": {
+        "storePath": "/nix/store/z4zcd87nx2hrsdayd0vl2mx5ncj3ikd8-binutils-wrapper-2.46",
+        "outputs": {
+            "info": "/nix/store/iqcpc679kkaazxihzwpn6dwp4sqjy709-binutils-wrapper-2.46-info",
+            "man": "/nix/store/xgfr9rf1fbh1pbcz8nzgv49nbfzczgji-binutils-wrapper-2.46-man",
+            "out": "/nix/store/z4zcd87nx2hrsdayd0vl2mx5ncj3ikd8-binutils-wrapper-2.46",
+        },
+    },
+    "coreutils": {
+        "storePath": "/nix/store/sr26flm2nkfa12dkrwj2630kqsfakky4-coreutils-9.11",
+        "outputs": {
+            "debug": "/nix/store/wifadx5v4ps5nvf23cr22lswn3q70s6f-coreutils-9.11-debug",
+            "info": "/nix/store/zs5bzwnkhgzka1ccvzkhx0xzf1mlah2j-coreutils-9.11-info",
+            "out": "/nix/store/sr26flm2nkfa12dkrwj2630kqsfakky4-coreutils-9.11",
+        },
+    },
+    "gcc": {
+        "storePath": "/nix/store/xcnqqnhw9hb4j5rjgds2yjryi8qki5f3-gcc-wrapper-15.2.0",
+        "outputs": {
+            "info": "/nix/store/pcar1vqvmn2y42lplzca392yx605kk31-gcc-wrapper-15.2.0-info",
+            "man": "/nix/store/dxqah042znlglapf07vha4qannacibf2-gcc-wrapper-15.2.0-man",
+            "out": "/nix/store/xcnqqnhw9hb4j5rjgds2yjryi8qki5f3-gcc-wrapper-15.2.0",
+        },
+    },
+    "hello": {
+        "storePath": "/nix/store/nm7p8wxflggcwxfzayhysq4z6a1wg373-hello-2.12.3",
+        "outputs": {
+            "out": "/nix/store/nm7p8wxflggcwxfzayhysq4z6a1wg373-hello-2.12.3",
+        },
+    },
+    "nix-store-shim": {
+        "storePath": "/nix/store/ljg8wn27311mlkalfgyiksk4n855qh3c-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0",
+        "outputs": {
+            "out": "/nix/store/ljg8wn27311mlkalfgyiksk4n855qh3c-nix-store-shim-static-x86_64-unknown-linux-musl-0.1.0",
+        },
+    },
+    "openssl": {
+        "storePath": "/nix/store/clvbx203wyqkdnqc5ngyhjlhcqn5s9x9-openssl-3.6.2-bin",
+        "outputs": {
+            "bin": "/nix/store/clvbx203wyqkdnqc5ngyhjlhcqn5s9x9-openssl-3.6.2-bin",
+            "debug": "/nix/store/029b2avw85i19v6vvxvrrx15kmg29kpr-openssl-3.6.2-debug",
+            "dev": "/nix/store/i0jqva96qfgc76g8w7jbyiv6h3si07b9-openssl-3.6.2-dev",
+            "doc": "/nix/store/32xivk30pdrnhhn2774dha3xphwcgb2v-openssl-3.6.2-doc",
+            "man": "/nix/store/0wv0fnqsp138dln7cx229hlf8qm553p5-openssl-3.6.2-man",
+            "out": "/nix/store/l0vl4dali2mvbpi30a8da1f71jl85myg-openssl-3.6.2",
+        },
+    },
+    "python3": {
+        "storePath": "/nix/store/l9k0anq0z7zz81zcwy035jfwap9ga6rl-python3-3.13.13",
+        "outputs": {
+            "debug": "/nix/store/g2pg1an3v5pm2fmwg1g7dw77ddpqirg7-python3-3.13.13-debug",
+            "out": "/nix/store/l9k0anq0z7zz81zcwy035jfwap9ga6rl-python3-3.13.13",
+        },
+    },
+    "python314": {
+        "storePath": "/nix/store/fk8c5cqd0npblqv1mcd8swhkcbng84qr-python3-3.14.4",
+        "outputs": {
+            "debug": "/nix/store/y6nmlnw8360r8lma5bjnp07vl9r4l07g-python3-3.14.4-debug",
+            "out": "/nix/store/fk8c5cqd0npblqv1mcd8swhkcbng84qr-python3-3.14.4",
+        },
+    },
 }
